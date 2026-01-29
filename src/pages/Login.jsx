@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase } from '../lib/supabase.js'
 
 export default function Login() {
   // Ahora guardamos solo el "usuario" (la parte antes del @)
