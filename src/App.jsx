@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { Toaster } from 'sonner'
 
@@ -7,22 +7,25 @@ import { Toaster } from 'sonner'
 import Sidebar from './components/layout/sidebar'
 import Topbar from './components/layout/topbar'
 
-// Páginas Reales
+// Páginas
 import Login from './pages/Login'
 import Home from './pages/Home'
-import Transporte from './components/Transporte.jsx'
-import Usuarios from './components/AdminUsuarios.jsx'
-import Finanzas from './components/GestionCostos.jsx'
 
-// Páginas Temporales (Placeholders)
-const Inventario = () => <div className="p-10 text-2xl font-bold text-gray-500">📦 Módulo de Inventario (Próximamente)</div>
-const Solicitudes = () => <div className="p-10 text-2xl font-bold text-gray-500">📋 Módulo de Solicitudes (Próximamente)</div>
-const Config = () => <div className="p-10 text-2xl font-bold text-gray-500">⚙️ Configuración (Próximamente)</div>
+// TUS COMPONENTES REALES (Ya no inventamos nada)
+import Transporte from './components/Transporte.jsx'
+import Ruteo from './components/Ruteo.jsx'
+import Devoluciones from './components/Devoluciones.jsx'
+import OperacionBitacora from './components/OperacionBitacora.jsx'
+import DashboardBitacora from './components/DashboardBitacora.jsx'
+import GestionCostos from './components/GestionCostos.jsx'
+import ReportesFinancieros from './components/ReportesFinancieros.jsx'
+import AdminUsuarios from './components/AdminUsuarios.jsx'
 
 // Ruta Protegida
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, role, loading } = useAuth()
 
+  // Spinner mientras carga (Evita que el F5 te bote)
   if (loading) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-100 gap-4">
@@ -34,7 +37,6 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   if (!user) return <Navigate to="/login" />
 
-  // Si hay roles permitidos y el usuario no lo tiene, al home
   if (allowedRoles && role && !allowedRoles.includes(role)) {
      return <Navigate to="/" />
   }
@@ -46,7 +48,7 @@ function AppContent() {
   const { user, role, signOut, loading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  if (loading) return null // El spinner ya lo maneja ProtectedRoute o Login
+  if (loading) return null
 
   if (!user) {
     return (
@@ -59,14 +61,14 @@ function AppContent() {
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
-      {/* SIDEBAR: Le pasamos el estado de apertura */}
+      {/* SIDEBAR */}
       <Sidebar
         role={role}
         isOpen={sidebarOpen}
         toggle={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      {/* CONTENIDO PRINCIPAL: Se mueve si el sidebar se abre */}
+      {/* CONTENIDO */}
       <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'ml-0'}`}>
         <Topbar
             sidebarOpen={sidebarOpen}
@@ -81,15 +83,21 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<Home role={role} />} />
 
-            {/* RUTAS REALES */}
+            {/* --- TUS RUTAS REALES --- */}
             <Route path="/transporte" element={<ProtectedRoute allowedRoles={['admin', 'cco', 'logistica', 'colaborador']}><Transporte /></ProtectedRoute>} />
-            <Route path="/finanzas" element={<ProtectedRoute allowedRoles={['admin', 'jefe_finanzas']}><Finanzas /></ProtectedRoute>} />
-            <Route path="/usuarios" element={<ProtectedRoute allowedRoles={['admin']}><Usuarios /></ProtectedRoute>} />
+            <Route path="/ruteo" element={<ProtectedRoute allowedRoles={['admin', 'cco']}><Ruteo /></ProtectedRoute>} />
+            <Route path="/devoluciones" element={<ProtectedRoute allowedRoles={['admin', 'cco', 'bodega']}><Devoluciones /></ProtectedRoute>} />
 
-            {/* RUTAS TEMPORALES */}
-            <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />
-            <Route path="/solicitudes" element={<ProtectedRoute><Solicitudes /></ProtectedRoute>} />
-            <Route path="/config" element={<ProtectedRoute><Config /></ProtectedRoute>} />
+            {/* Bitácora */}
+            <Route path="/bitacora-operacion" element={<ProtectedRoute allowedRoles={['admin', 'cco']}><OperacionBitacora /></ProtectedRoute>} />
+            <Route path="/bitacora-dashboard" element={<ProtectedRoute allowedRoles={['admin']}><DashboardBitacora /></ProtectedRoute>} />
+
+            {/* Finanzas */}
+            <Route path="/finanzas" element={<ProtectedRoute allowedRoles={['admin', 'jefe_finanzas', 'analista_finanzas']}><GestionCostos /></ProtectedRoute>} />
+            <Route path="/reportes" element={<ProtectedRoute allowedRoles={['admin', 'jefe_finanzas']}><ReportesFinancieros /></ProtectedRoute>} />
+
+            {/* Admin */}
+            <Route path="/usuarios" element={<ProtectedRoute allowedRoles={['admin']}><AdminUsuarios /></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

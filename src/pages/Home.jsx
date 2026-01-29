@@ -1,17 +1,17 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom' // Usamos el hook moderno
+import { useNavigate } from 'react-router-dom'
 import bannerImg from '../assets/banner_valdishopper.jpg'
-import { PieChart, Users, DollarSign, ShoppingCart, Settings, Activity, FileText, Truck } from 'lucide-react'
+import { Truck, Map, RotateCcw, ClipboardList, DollarSign, Users, BarChart2 } from 'lucide-react'
 
 export default function Home({ role }) {
-  const navigate = useNavigate() // Para cambiar de pagina sin recargar
+  const navigate = useNavigate()
 
   const formatRole = (r) => {
     if (!r) return '...'
     return r.replace('_', ' ').toUpperCase()
   }
 
-  const ActionCard = ({ title, icon: Icon, color, path, desc, count }) => (
+  const ActionCard = ({ title, icon: Icon, color, path, desc }) => (
     <button
       onClick={() => navigate(path)}
       className="group relative bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100 overflow-hidden text-left w-full"
@@ -41,11 +41,10 @@ export default function Home({ role }) {
               Hola, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">{formatRole(role)}</span>
             </h1>
             <p className="text-gray-500 mt-2 text-sm leading-relaxed">
-              Bienvenido al panel de control. Selecciona una acción rápida.
+              Bienvenido al panel. Selecciona un módulo operativo.
             </p>
           </div>
         </div>
-
         <div className="lg:col-span-2 relative h-48 lg:h-56 rounded-3xl overflow-hidden shadow-lg border-2 border-white group">
             <img src={bannerImg} alt="Banner" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#1e3c72]/60 to-transparent"></div>
@@ -54,79 +53,71 @@ export default function Home({ role }) {
 
       <div className="h-px bg-gray-200 w-full my-6"></div>
 
-      {/* GRID DE ACCIONES (Solo rutas que existen en App.jsx) */}
-      <div className="space-y-8">
-        <section>
-            <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">
-              <Activity size={16} /> Operaciones
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {/* ACCIONES REALES */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
 
-              <ActionCard
-                title="Torre de Control"
-                desc="Gestión de transporte"
-                icon={Truck}
-                color="#d63384"
-                path="/transporte"
-              />
+        {/* TODOS PUEDEN VER */}
+        <ActionCard
+          title="Torre de Control"
+          desc="Gestión de transporte"
+          icon={Truck}
+          color="#d63384"
+          path="/transporte"
+        />
 
-              <ActionCard
-                title="Solicitudes"
-                desc="Crear requerimientos"
-                icon={ShoppingCart}
-                color="#2563eb"
-                path="/solicitudes"
-              />
+        <ActionCard
+          title="Ruteo"
+          desc="Mapas y rutas"
+          icon={Map}
+          color="#2563eb"
+          path="/ruteo"
+        />
 
-              <ActionCard
-                title="Inventario"
-                desc="Stock y productos"
-                icon={FileText}
-                color="#0891b2"
-                path="/inventario"
-              />
-            </div>
-        </section>
+        <ActionCard
+          title="Devoluciones"
+          desc="Control de retornos"
+          icon={RotateCcw}
+          color="#f59e0b"
+          path="/devoluciones"
+        />
 
+        <ActionCard
+          title="Bitácora Ops"
+          desc="Registro diario"
+          icon={ClipboardList}
+          color="#10b981"
+          path="/bitacora-operacion"
+        />
+
+        {/* SOLO FINANZAS/ADMIN */}
         {['admin', 'jefe_finanzas'].includes(role) && (
-          <section>
-             <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">
-              <DollarSign size={16} /> Finanzas
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              <ActionCard
-                title="Reportes Financieros"
-                desc="Costos y balances"
-                icon={DollarSign}
-                color="#16a34a"
-                path="/finanzas"
-              />
-            </div>
-          </section>
+          <ActionCard
+            title="Gestión Costos"
+            desc="Finanzas operativas"
+            icon={DollarSign}
+            color="#16a34a"
+            path="/finanzas"
+          />
         )}
 
+        {/* SOLO ADMIN */}
         {role === 'admin' && (
-          <section>
-             <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">
-              <Settings size={16} /> Admin
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              <ActionCard
-                title="Usuarios"
-                desc="Gestión de roles"
-                icon={Users}
-                color="#dc2626"
-                path="/usuarios"
-              />
-              <ActionCard
-                title="Configuración"
-                desc="Ajustes globales"
-                icon={Settings}
-                color="#4b5563"
-                path="/config"
-              />
-            </div>
-          </section>
+          <>
+            <ActionCard
+              title="Usuarios"
+              desc="Roles y accesos"
+              icon={Users}
+              color="#dc2626"
+              path="/usuarios"
+            />
+            <ActionCard
+              title="Dashboard Bitácora"
+              desc="Métricas generales"
+              icon={BarChart2}
+              color="#7c3aed"
+              path="/bitacora-dashboard"
+            />
+          </>
         )}
       </div>
     </div>
