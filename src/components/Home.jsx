@@ -1,6 +1,6 @@
 import React from 'react'
 import bannerImg from '../assets/banner_valdishopper.jpg'
-// Importamos iconos profesionales (si no usas lucide, puedes cambiar esto por emojis o SVGs)
+// Asegúrate de tener instalada la librería: npm install lucide-react
 import {
   PieChart,
   Users,
@@ -9,19 +9,21 @@ import {
   Settings,
   Activity,
   FileText,
-  ShieldCheck
+  ShieldCheck,
+  Truck // <--- Agregamos este icono para tu Torre de Control
 } from 'lucide-react'
 
 export default function Home({ role, cambiarVista }) {
 
+  // --- CORRECCIÓN CRÍTICA: Adiós "Invitado" ---
   const formatRole = (r) => {
-    if (!r) return 'Invitado'
+    if (!r) return '...' // Muestra puntos suspensivos mientras carga
     return r.replace('_', ' ').toUpperCase()
   }
 
-  // Permisos
+  // Permisos (Ajustados a tu realidad CCO/Admin)
   const isAdmin = role === 'admin'
-  const isOps = ['admin', 'cco'].includes(role)
+  const isOps = ['admin', 'cco', 'logistica'].includes(role)
   const isFinanceHead = ['admin', 'jefe_finanzas'].includes(role)
   const isFinanceUser = ['admin', 'jefe_finanzas', 'analista_finanzas'].includes(role)
 
@@ -37,7 +39,6 @@ export default function Home({ role, cambiarVista }) {
       <div className="flex justify-between items-start relative z-10">
         <div className="space-y-3">
           <div className="p-3 rounded-xl w-fit transition-colors group-hover:text-white" style={{ backgroundColor: `${color}15`, color: color }}>
-             {/* Icono dinámico */}
              <Icon size={24} className="group-hover:text-current" />
           </div>
           <div>
@@ -46,7 +47,6 @@ export default function Home({ role, cambiarVista }) {
           </div>
         </div>
 
-        {/* Badge de contador (Opcional) */}
         {count && (
           <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">
             {count}
@@ -61,7 +61,7 @@ export default function Home({ role, cambiarVista }) {
     </button>
   )
 
-  // Widget de estadísticas rápidas (simulado)
+  // Widget de estadísticas rápidas
   const StatWidget = ({ label, value, trend, positive }) => (
     <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
       <div>
@@ -77,29 +77,26 @@ export default function Home({ role, cambiarVista }) {
   return (
     <div className="animate-fade-in max-w-7xl mx-auto space-y-8 pb-12">
 
-      {/* 1. HEADER & BANNER COMPACTO */}
-      {/* Dividimos el header para que sea más funcional y menos "póster" */}
+      {/* 1. HEADER & BANNER */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Columna Izquierda: Bienvenida y Contexto */}
+        {/* Bienvenida */}
         <div className="lg:col-span-1 flex flex-col justify-center space-y-4 p-2">
           <div>
             <h1 className="text-3xl font-black text-[#1e3c72] leading-tight">
               Hola, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">{formatRole(role)}</span>
             </h1>
             <p className="text-gray-500 mt-2 text-sm leading-relaxed">
-              Bienvenido al panel de control de <strong>ValdiShopper</strong>. Selecciona una acción rápida o revisa las métricas del día.
+              Bienvenido al panel de control de <strong>ValdiShopper</strong>. Aquí tienes el resumen operativo del día.
             </p>
           </div>
 
-          {/* Tarjeta de Rol Minimalista */}
           <div className="flex items-center gap-3 bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100 w-fit">
             <div className={`w-2 h-2 rounded-full ${isAdmin ? 'bg-red-500' : 'bg-green-500'} animate-pulse`}></div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Sistema Operativo</p>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Sistema Operativo v2.5</p>
           </div>
         </div>
 
-        {/* Columna Derecha: El Banner (Más panorámico y controlado) */}
+        {/* Banner */}
         <div className="lg:col-span-2 relative h-48 lg:h-56 rounded-3xl overflow-hidden shadow-lg border-2 border-white group">
             <img
               src={bannerImg}
@@ -108,54 +105,59 @@ export default function Home({ role, cambiarVista }) {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#1e3c72]/60 to-transparent pointer-events-none"></div>
             <div className="absolute bottom-4 left-6 text-white pointer-events-none">
-              <p className="font-bold text-lg">Panel de Gestión</p>
-              <p className="text-xs opacity-80">v2.4.0 Stable</p>
+              <p className="font-bold text-lg">Panel de Gestión Integral</p>
+              <p className="text-xs opacity-80">Valdivia, Chile</p>
             </div>
         </div>
       </div>
 
-      {/* 2. RESUMEN RÁPIDO (Solo visible para roles relevantes) */}
+      {/* 2. RESUMEN RÁPIDO (Métricas Simuladas) */}
       {(isOps || isFinanceUser) && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatWidget label="Ventas Hoy" value="$1.2M" trend="+12%" positive={true} />
-          <StatWidget label="Pedidos Activos" value="34" trend="+5" positive={true} />
-          <StatWidget label="Tasa Conversión" value="4.2%" trend="-0.4%" positive={false} />
-          <StatWidget label="Usuarios Nuevos" value="12" trend="+2" positive={true} />
+          <StatWidget label="Envíos Hoy" value="42" trend="+12%" positive={true} />
+          <StatWidget label="Pendientes" value="8" trend="-2" positive={true} />
+          <StatWidget label="Eficiencia" value="94%" trend="+1.5%" positive={true} />
+          <StatWidget label="Incidencias" value="1" trend="-50%" positive={true} />
         </div>
       )}
 
       <div className="h-px bg-gray-200 w-full my-6"></div>
 
-      {/* 3. GRID DE ACCIONES (Organizado por áreas) */}
+      {/* 3. GRID DE ACCIONES */}
       <div className="space-y-8">
 
-        {/* OPERACIONES */}
+        {/* OPERACIONES Y LOGÍSTICA */}
         {isOps && (
           <section>
             <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">
-              <Activity size={16} /> Operaciones & Gestión
+              <Activity size={16} /> Operaciones & Logística
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+              {/* TARJETA IMPORTANTE: TORRE DE CONTROL */}
               <ActionCard
-                title="Nueva Solicitud"
-                desc="Crear orden de compra o servicio"
+                title="Torre de Control"
+                desc="Gestión de transporte, rutas y choferes"
+                icon={Truck}
+                color="#d63384" // Pink (Tu color corporativo)
+                onClick={() => cambiarVista('transporte')}
+                count="Live"
+              />
+
+              <ActionCard
+                title="Solicitudes"
+                desc="Crear y revisar requerimientos"
                 icon={ShoppingCart}
                 color="#2563eb" // Blue
                 onClick={() => cambiarVista('solicitudes')}
               />
+
               <ActionCard
                 title="Métricas"
                 desc="KPIs y rendimiento operativo"
                 icon={PieChart}
                 color="#7c3aed" // Violet
                 onClick={() => cambiarVista('metricas')}
-              />
-               <ActionCard
-                title="Inventario"
-                desc="Gestión de stock y productos"
-                icon={FileText}
-                color="#0891b2" // Cyan
-                onClick={() => cambiarVista('inventario')}
               />
             </div>
           </section>
@@ -172,7 +174,7 @@ export default function Home({ role, cambiarVista }) {
                 title="Reportes Financieros"
                 desc="Balances y estado de resultados"
                 icon={DollarSign}
-                color="#16a34a" // Green
+                color="#16a34a"
                 onClick={() => cambiarVista('finanzas')}
               />
               {isFinanceHead && (
@@ -180,7 +182,7 @@ export default function Home({ role, cambiarVista }) {
                   title="Aprobar Presupuestos"
                   desc="Revisión de flujo de caja"
                   icon={ShieldCheck}
-                  color="#ea580c" // Orange
+                  color="#ea580c"
                   count="3"
                   onClick={() => cambiarVista('presupuestos')}
                 />
@@ -200,21 +202,20 @@ export default function Home({ role, cambiarVista }) {
                 title="Usuarios"
                 desc="Gestión de roles y accesos"
                 icon={Users}
-                color="#dc2626" // Red
+                color="#dc2626"
                 onClick={() => cambiarVista('usuarios')}
               />
               <ActionCard
                 title="Configuración"
                 desc="Parámetros globales del sistema"
                 icon={Settings}
-                color="#4b5563" // Gray
+                color="#4b5563"
                 onClick={() => cambiarVista('config')}
               />
             </div>
           </section>
         )}
       </div>
-
     </div>
   )
 }
