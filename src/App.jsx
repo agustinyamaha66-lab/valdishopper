@@ -1,44 +1,40 @@
 import { useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { Toaster } from 'sonner' // Si no tienes sonner, puedes comentar esta línea
+import { Toaster } from 'sonner'
+
+// Layout
 import Sidebar from './components/layout/sidebar'
 import Topbar from './components/layout/topbar'
 
-// --- 1. PÁGINAS PRINCIPALES (Están en /pages) ---
+// Páginas Reales
 import Login from './pages/Login'
 import Home from './pages/Home'
-
-// --- 2. COMPONENTES OPERATIVOS (Están en /components) ---
-// Aquí conectamos tus archivos reales a las rutas
 import Transporte from './components/Transporte.jsx'
-import Usuarios from './components/AdminUsuarios.jsx' // Usamos AdminUsuarios para la ruta de Usuarios
-import Finanzas from './components/GestionCostos.jsx' // Usamos GestionCostos para la ruta de Finanzas
+import Usuarios from './components/AdminUsuarios.jsx'
+import Finanzas from './components/GestionCostos.jsx'
 
-// --- 3. PLACEHOLDERS (Para lo que aún no has creado) ---
-// Estos evitan que Vercel te de error rojo por "archivo no encontrado"
-const Inventario = () => <div className="p-10 text-2xl font-bold text-gray-500 animate-pulse">📦 Módulo de Inventario (Próximamente)</div>
-const Solicitudes = () => <div className="p-10 text-2xl font-bold text-gray-500 animate-pulse">📋 Módulo de Solicitudes (Próximamente)</div>
-const Config = () => <div className="p-10 text-2xl font-bold text-gray-500 animate-pulse">⚙️ Configuración del Sistema (Próximamente)</div>
+// Páginas Temporales (Placeholders)
+const Inventario = () => <div className="p-10 text-2xl font-bold text-gray-500">📦 Módulo de Inventario (Próximamente)</div>
+const Solicitudes = () => <div className="p-10 text-2xl font-bold text-gray-500">📋 Módulo de Solicitudes (Próximamente)</div>
+const Config = () => <div className="p-10 text-2xl font-bold text-gray-500">⚙️ Configuración (Próximamente)</div>
 
-// --- LÓGICA DE PROTECCIÓN DE RUTAS ---
+// Ruta Protegida
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, role, loading } = useAuth()
 
-  // 1. SI ESTÁ CARGANDO, MOSTRAMOS SPINNER (CRUCIAL PARA EL F5)
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-100 flex-col gap-4">
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-100 gap-4">
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
         <p className="text-gray-500 font-bold animate-pulse">Cargando Sistema...</p>
       </div>
     )
   }
 
-  // 2. SI NO HAY USUARIO, AL LOGIN
   if (!user) return <Navigate to="/login" />
 
-  // 3. SI EL ROL NO ESTÁ AUTORIZADO
+  // Si hay roles permitidos y el usuario no lo tiene, al home
   if (allowedRoles && role && !allowedRoles.includes(role)) {
      return <Navigate to="/" />
   }
@@ -50,19 +46,8 @@ function AppContent() {
   const { user, role, signOut, loading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  // Pantalla de carga global
-  if (loading) {
-     return (
-      <div className="flex h-screen w-full items-center justify-center bg-[#1e3c72]">
-        <div className="text-white text-center">
-            <h1 className="text-3xl font-black tracking-tighter mb-4">VALDISHOPPER</h1>
-            <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
-        </div>
-      </div>
-     )
-  }
+  if (loading) return null // El spinner ya lo maneja ProtectedRoute o Login
 
-  // Si no está logueado, Login
   if (!user) {
     return (
       <Routes>
@@ -72,18 +57,17 @@ function AppContent() {
     )
   }
 
-  // Layout Principal
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
-      {/* SIDEBAR */}
+      {/* SIDEBAR: Le pasamos el estado de apertura */}
       <Sidebar
         role={role}
-        sidebarOpen={sidebarOpen}
-        toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        isOpen={sidebarOpen}
+        toggle={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      {/* CONTENIDO DERECHO */}
-      <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
+      {/* CONTENIDO PRINCIPAL: Se mueve si el sidebar se abre */}
+      <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'ml-0'}`}>
         <Topbar
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
@@ -95,17 +79,17 @@ function AppContent() {
 
         <main className="flex-1 overflow-y-auto p-6 mt-16">
           <Routes>
-            <Route path="/" element={<Home role={role} cambiarVista={(v) => window.location.href = `/${v}`} />} />
+            <Route path="/" element={<Home role={role} />} />
 
-            {/* --- RUTAS CONECTADAS A TUS ARCHIVOS REALES --- */}
+            {/* RUTAS REALES */}
             <Route path="/transporte" element={<ProtectedRoute allowedRoles={['admin', 'cco', 'logistica', 'colaborador']}><Transporte /></ProtectedRoute>} />
-            <Route path="/finanzas" element={<ProtectedRoute allowedRoles={['admin', 'jefe_finanzas', 'analista_finanzas']}><Finanzas /></ProtectedRoute>} />
+            <Route path="/finanzas" element={<ProtectedRoute allowedRoles={['admin', 'jefe_finanzas']}><Finanzas /></ProtectedRoute>} />
             <Route path="/usuarios" element={<ProtectedRoute allowedRoles={['admin']}><Usuarios /></ProtectedRoute>} />
 
-            {/* --- RUTAS TEMPORALES (PLACEHOLDERS) --- */}
-            <Route path="/inventario" element={<ProtectedRoute allowedRoles={['admin', 'cco', 'bodega']}><Inventario /></ProtectedRoute>} />
-            <Route path="/solicitudes" element={<ProtectedRoute allowedRoles={['admin', 'cco', 'jefe_finanzas', 'colaborador']}><Solicitudes /></ProtectedRoute>} />
-            <Route path="/config" element={<ProtectedRoute allowedRoles={['admin']}><Config /></ProtectedRoute>} />
+            {/* RUTAS TEMPORALES */}
+            <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />
+            <Route path="/solicitudes" element={<ProtectedRoute><Solicitudes /></ProtectedRoute>} />
+            <Route path="/config" element={<ProtectedRoute><Config /></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

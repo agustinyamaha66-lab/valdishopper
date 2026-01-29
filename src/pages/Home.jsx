@@ -1,41 +1,22 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom' // Usamos el hook moderno
 import bannerImg from '../assets/banner_valdishopper.jpg'
-// Asegúrate de tener instalada la librería: npm install lucide-react
-import {
-  PieChart,
-  Users,
-  DollarSign,
-  ShoppingCart,
-  Settings,
-  Activity,
-  FileText,
-  ShieldCheck,
-  Truck // <--- Agregamos este icono para tu Torre de Control
-} from 'lucide-react'
+import { PieChart, Users, DollarSign, ShoppingCart, Settings, Activity, FileText, Truck } from 'lucide-react'
 
-export default function Home({ role, cambiarVista }) {
+export default function Home({ role }) {
+  const navigate = useNavigate() // Para cambiar de pagina sin recargar
 
-  // --- CORRECCIÓN CRÍTICA: Adiós "Invitado" ---
   const formatRole = (r) => {
-    if (!r) return '...' // Muestra puntos suspensivos mientras carga
+    if (!r) return '...'
     return r.replace('_', ' ').toUpperCase()
   }
 
-  // Permisos (Ajustados a tu realidad CCO/Admin)
-  const isAdmin = role === 'admin'
-  const isOps = ['admin', 'cco', 'logistica'].includes(role)
-  const isFinanceHead = ['admin', 'jefe_finanzas'].includes(role)
-  const isFinanceUser = ['admin', 'jefe_finanzas', 'analista_finanzas'].includes(role)
-
-  // Componente de Tarjeta Mejorado
-  const ActionCard = ({ title, icon: Icon, color, onClick, desc, count }) => (
+  const ActionCard = ({ title, icon: Icon, color, path, desc, count }) => (
     <button
-      onClick={onClick}
+      onClick={() => navigate(path)}
       className="group relative bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100 overflow-hidden text-left w-full"
     >
-      {/* Barra de color superior */}
       <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: color }}></div>
-
       <div className="flex justify-between items-start relative z-10">
         <div className="space-y-3">
           <div className="p-3 rounded-xl w-fit transition-colors group-hover:text-white" style={{ backgroundColor: `${color}15`, color: color }}>
@@ -46,171 +27,103 @@ export default function Home({ role, cambiarVista }) {
             <p className="text-sm text-gray-500 mt-1 font-medium">{desc}</p>
           </div>
         </div>
-
-        {count && (
-          <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">
-            {count}
-          </span>
-        )}
-      </div>
-
-      {/* Decoración de fondo */}
-      <div className="absolute -right-6 -bottom-6 opacity-0 group-hover:opacity-10 transition-opacity duration-500">
-         <Icon size={100} style={{ color: color }} />
       </div>
     </button>
   )
 
-  // Widget de estadísticas rápidas
-  const StatWidget = ({ label, value, trend, positive }) => (
-    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-      <div>
-        <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">{label}</p>
-        <p className="text-2xl font-black text-[#1e3c72] mt-1">{value}</p>
-      </div>
-      <div className={`text-xs font-bold px-2 py-1 rounded-lg ${positive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-        {trend}
-      </div>
-    </div>
-  )
-
   return (
     <div className="animate-fade-in max-w-7xl mx-auto space-y-8 pb-12">
-
-      {/* 1. HEADER & BANNER */}
+      {/* HEADER */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Bienvenida */}
         <div className="lg:col-span-1 flex flex-col justify-center space-y-4 p-2">
           <div>
             <h1 className="text-3xl font-black text-[#1e3c72] leading-tight">
               Hola, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">{formatRole(role)}</span>
             </h1>
             <p className="text-gray-500 mt-2 text-sm leading-relaxed">
-              Bienvenido al panel de control de <strong>ValdiShopper</strong>. Aquí tienes el resumen operativo del día.
+              Bienvenido al panel de control. Selecciona una acción rápida.
             </p>
-          </div>
-
-          <div className="flex items-center gap-3 bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100 w-fit">
-            <div className={`w-2 h-2 rounded-full ${isAdmin ? 'bg-red-500' : 'bg-green-500'} animate-pulse`}></div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Sistema Operativo v2.5</p>
           </div>
         </div>
 
-        {/* Banner */}
         <div className="lg:col-span-2 relative h-48 lg:h-56 rounded-3xl overflow-hidden shadow-lg border-2 border-white group">
-            <img
-              src={bannerImg}
-              alt="ValdiShopper Banner"
-              className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-[3s]"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#1e3c72]/60 to-transparent pointer-events-none"></div>
-            <div className="absolute bottom-4 left-6 text-white pointer-events-none">
-              <p className="font-bold text-lg">Panel de Gestión Integral</p>
-              <p className="text-xs opacity-80">Valdivia, Chile</p>
-            </div>
+            <img src={bannerImg} alt="Banner" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1e3c72]/60 to-transparent"></div>
         </div>
       </div>
 
-      {/* 2. RESUMEN RÁPIDO (Métricas Simuladas) */}
-      {(isOps || isFinanceUser) && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatWidget label="Envíos Hoy" value="42" trend="+12%" positive={true} />
-          <StatWidget label="Pendientes" value="8" trend="-2" positive={true} />
-          <StatWidget label="Eficiencia" value="94%" trend="+1.5%" positive={true} />
-          <StatWidget label="Incidencias" value="1" trend="-50%" positive={true} />
-        </div>
-      )}
-
       <div className="h-px bg-gray-200 w-full my-6"></div>
 
-      {/* 3. GRID DE ACCIONES */}
+      {/* GRID DE ACCIONES (Solo rutas que existen en App.jsx) */}
       <div className="space-y-8">
-
-        {/* OPERACIONES Y LOGÍSTICA */}
-        {isOps && (
-          <section>
+        <section>
             <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">
-              <Activity size={16} /> Operaciones & Logística
+              <Activity size={16} /> Operaciones
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
 
-              {/* TARJETA IMPORTANTE: TORRE DE CONTROL */}
               <ActionCard
                 title="Torre de Control"
-                desc="Gestión de transporte, rutas y choferes"
+                desc="Gestión de transporte"
                 icon={Truck}
-                color="#d63384" // Pink (Tu color corporativo)
-                onClick={() => cambiarVista('transporte')}
-                count="Live"
+                color="#d63384"
+                path="/transporte"
               />
 
               <ActionCard
                 title="Solicitudes"
-                desc="Crear y revisar requerimientos"
+                desc="Crear requerimientos"
                 icon={ShoppingCart}
-                color="#2563eb" // Blue
-                onClick={() => cambiarVista('solicitudes')}
+                color="#2563eb"
+                path="/solicitudes"
               />
 
               <ActionCard
-                title="Métricas"
-                desc="KPIs y rendimiento operativo"
-                icon={PieChart}
-                color="#7c3aed" // Violet
-                onClick={() => cambiarVista('metricas')}
+                title="Inventario"
+                desc="Stock y productos"
+                icon={FileText}
+                color="#0891b2"
+                path="/inventario"
               />
             </div>
-          </section>
-        )}
+        </section>
 
-        {/* FINANZAS */}
-        {isFinanceUser && (
+        {['admin', 'jefe_finanzas'].includes(role) && (
           <section>
              <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">
-              <DollarSign size={16} /> Área Financiera
+              <DollarSign size={16} /> Finanzas
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               <ActionCard
                 title="Reportes Financieros"
-                desc="Balances y estado de resultados"
+                desc="Costos y balances"
                 icon={DollarSign}
                 color="#16a34a"
-                onClick={() => cambiarVista('finanzas')}
+                path="/finanzas"
               />
-              {isFinanceHead && (
-                <ActionCard
-                  title="Aprobar Presupuestos"
-                  desc="Revisión de flujo de caja"
-                  icon={ShieldCheck}
-                  color="#ea580c"
-                  count="3"
-                  onClick={() => cambiarVista('presupuestos')}
-                />
-              )}
             </div>
           </section>
         )}
 
-        {/* ADMINISTRACIÓN */}
-        {isAdmin && (
+        {role === 'admin' && (
           <section>
              <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">
-              <Settings size={16} /> Administración
+              <Settings size={16} /> Admin
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               <ActionCard
                 title="Usuarios"
-                desc="Gestión de roles y accesos"
+                desc="Gestión de roles"
                 icon={Users}
                 color="#dc2626"
-                onClick={() => cambiarVista('usuarios')}
+                path="/usuarios"
               />
               <ActionCard
                 title="Configuración"
-                desc="Parámetros globales del sistema"
+                desc="Ajustes globales"
                 icon={Settings}
                 color="#4b5563"
-                onClick={() => cambiarVista('config')}
+                path="/config"
               />
             </div>
           </section>

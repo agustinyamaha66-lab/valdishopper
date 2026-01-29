@@ -1,108 +1,79 @@
-import { useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { Home, Truck, Users, DollarSign, Package, FileText, Settings, X } from 'lucide-react'
 
-export default function Sidebar({ cambiarVista, vistaActual, isOpen, setIsOpen, role }) {
-  const [menuAbierto, setMenuAbierto] = useState('OPERACIONES')
+export default function Sidebar({ role, isOpen, toggle }) {
+  const location = useLocation()
 
-  const toggleMenu = (nombre) => {
-    if (menuAbierto === nombre) setMenuAbierto('')
-    else setMenuAbierto(nombre)
-  }
-
-  const SubMenuLink = ({ label, viewName }) => (
-    <button
-      onClick={() => { cambiarVista(viewName); setIsOpen(false); }}
-      className={`w-full text-left pl-12 py-2 text-sm transition-colors border-l-4 ${
-        vistaActual === viewName ? 'border-[#d63384] bg-[#14284d] text-white font-bold' : 'border-transparent text-gray-300 hover:text-white hover:bg-[#2a4d8c]'
-      }`}
-    >
-      {label}
-    </button>
-  )
-
-  // --- LÓGICA DE PERMISOS ---
-  const canViewOps = ['admin', 'cco'].includes(role)
-  const canViewFinanceGroup = ['admin', 'jefe_finanzas', 'cco'].includes(role)
-  const canViewGestionCostos = ['admin', 'cco', 'jefe_finanzas'].includes(role)
-  const canViewReportesFinancieros = ['admin', 'jefe_finanzas'].includes(role)
-  const canViewAdminPanel = role === 'admin'
+  // Función helper para ver si el link está activo
+  const isActive = (path) => location.pathname === path ? 'bg-white/10 border-l-4 border-[#d63384] text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
 
   return (
-    <aside onMouseLeave={() => setIsOpen(false)} className={`fixed left-0 top-0 h-screen w-64 bg-[#1e3c72] text-white flex flex-col shadow-2xl z-50 transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+    <>
+      {/* OVERLAY PARA MOVIL (Cierra el menu al hacer click fuera) */}
+      <div
+        className={`fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={toggle}
+      />
 
-      {/* HEADER SIDEBAR */}
-      <div className="h-16 flex items-center justify-center border-b border-[#2a4d8c] bg-[#14284d]">
-        <div className="text-center">
-          <h1 className="text-2xl font-black tracking-tighter">CCO HUB</h1>
-          <p className="text-[10px] text-[#d63384] font-bold tracking-[0.2em] uppercase">{role?.replace('_', ' ')}</p>
+      {/* SIDEBAR */}
+      <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-[#0f172a] shadow-2xl transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+
+        {/* HEADER DEL SIDEBAR */}
+        <div className="h-16 flex items-center justify-between px-6 bg-[#1e293b] border-b border-gray-700">
+          <h1 className="text-xl font-black text-white tracking-tighter">
+            VALDI<span className="text-[#d63384]">SHOPPER</span>
+          </h1>
+          <button onClick={toggle} className="md:hidden text-gray-400 hover:text-white">
+            <X size={24} />
+          </button>
         </div>
-      </div>
 
-      <div className="flex-1 overflow-y-auto py-4 space-y-2">
+        {/* NAVEGACIÓN */}
+        <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100vh-64px)]">
 
-        {/* GRUPO OPERACIONES */}
-        {canViewOps && (
-          <div>
-            <button onClick={() => toggleMenu('OPERACIONES')} className="w-full flex items-center justify-between px-6 py-3 hover:bg-[#2a4d8c] transition-colors">
-              <div className="flex items-center gap-3 font-bold text-sm tracking-wide"><span></span> OPERACIONES</div>
-              <span className={`transform transition-transform ${menuAbierto === 'OPERACIONES' ? 'rotate-180' : ''}`}>▼</span>
-            </button>
-            <div className={`overflow-hidden transition-all duration-300 ${menuAbierto === 'OPERACIONES' ? 'max-h-80' : 'max-h-0'}`}>
-              <SubMenuLink label="Torre de Control" viewName="transporte" />
-              <SubMenuLink label="Devoluciones Bodega" viewName="devoluciones" />
-              <SubMenuLink label="Registro de Incidencias" viewName="bitacora_ops" />
+            <Link to="/" className={`flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all ${isActive('/')}`}>
+              <Home size={20} /> <span className="font-bold text-sm">Inicio</span>
+            </Link>
 
-              {/* --- AQUÍ ESTÁ EL CAMBIO --- */}
-              {/* Solo mostramos el Dashboard si el rol es 'admin'. El CCO no lo verá. */}
-              {role === 'admin' && (
-                  <SubMenuLink label="Dashboard Incidencias" viewName="bitacora_dash" />
-              )}
+            <div className="pt-4 pb-2 px-4 text-xs font-bold text-gray-600 uppercase tracking-wider">Operaciones</div>
 
-              <SubMenuLink label="Ruteo Inteligente" viewName="ruteo" />
-            </div>
-          </div>
-        )}
+            <Link to="/transporte" className={`flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all ${isActive('/transporte')}`}>
+              <Truck size={20} /> <span className="font-bold text-sm">Torre de Control</span>
+            </Link>
 
-        {/* GRUPO FINANZAS */}
-        {canViewFinanceGroup && (
-          <div>
-            <button onClick={() => toggleMenu('FINANZAS')} className="w-full flex items-center justify-between px-6 py-3 hover:bg-[#2a4d8c] transition-colors">
-              <div className="flex items-center gap-3 font-bold text-sm tracking-wide"><span></span> FINANZAS</div>
-              <span className={`transform transition-transform ${menuAbierto === 'FINANZAS' ? 'rotate-180' : ''}`}>▼</span>
-            </button>
-            <div className={`overflow-hidden transition-all duration-300 ${menuAbierto === 'FINANZAS' ? 'max-h-40' : 'max-h-0'}`}>
-              {canViewGestionCostos && <SubMenuLink label="Gestión Costos" viewName="finanzas" />}
-              {canViewReportesFinancieros && <SubMenuLink label="Reporte de Costos" viewName="kpis" />}
-            </div>
-          </div>
-        )}
+            <Link to="/solicitudes" className={`flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all ${isActive('/solicitudes')}`}>
+              <FileText size={20} /> <span className="font-bold text-sm">Solicitudes</span>
+            </Link>
 
-        {/* GRUPO ADMINISTRACIÓN (NUEVO - SOLO ADMIN) */}
-        {canViewAdminPanel && (
-          <div className="mt-4 pt-4 border-t border-blue-800/50">
-             <div className="px-6 pb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sistema</div>
-             <button
-                onClick={() => { cambiarVista('admin_users'); setIsOpen(false); }}
-                className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-[#2a4d8c] transition-colors ${vistaActual === 'admin_users' ? 'bg-[#14284d] text-[#d63384] font-bold border-l-4 border-[#d63384]' : 'text-gray-300'}`}
-             >
-                <span>👥</span> Gestión Usuarios
-             </button>
-          </div>
-        )}
+            <Link to="/inventario" className={`flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all ${isActive('/inventario')}`}>
+              <Package size={20} /> <span className="font-bold text-sm">Inventario</span>
+            </Link>
 
-      </div>
+            {/* SOLO ADMIN Y FINANZAS */}
+            {['admin', 'jefe_finanzas', 'analista_finanzas'].includes(role) && (
+              <>
+                <div className="pt-4 pb-2 px-4 text-xs font-bold text-gray-600 uppercase tracking-wider">Administración</div>
 
-      {/* FOOTER USUARIO */}
-      <div className="p-4 bg-[#14284d] border-t border-[#2a4d8c]">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-[#d63384] to-blue-500 flex items-center justify-center font-bold text-lg text-white">
-             {role ? role.substring(0,2).toUpperCase() : 'U'}
-          </div>
-          <div>
-            <p className="text-sm font-bold text-white">Usuario</p>
-            <p className="text-[10px] text-gray-400 uppercase">{role?.replace('_', ' ')}</p>
-          </div>
-        </div>
-      </div>
-    </aside>
+                <Link to="/finanzas" className={`flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all ${isActive('/finanzas')}`}>
+                  <DollarSign size={20} /> <span className="font-bold text-sm">Finanzas</span>
+                </Link>
+              </>
+            )}
+
+            {role === 'admin' && (
+              <>
+                <Link to="/usuarios" className={`flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all ${isActive('/usuarios')}`}>
+                  <Users size={20} /> <span className="font-bold text-sm">Usuarios</span>
+                </Link>
+
+                <Link to="/config" className={`flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all ${isActive('/config')}`}>
+                  <Settings size={20} /> <span className="font-bold text-sm">Configuración</span>
+                </Link>
+              </>
+            )}
+
+        </nav>
+      </aside>
+    </>
   )
 }
