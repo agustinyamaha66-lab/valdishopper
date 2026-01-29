@@ -12,46 +12,65 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    const recuperarSesion = async () => {
+    // Función auxiliar para obtener el perfil de forma segura
+    const fetchPerfil = async (userId) => {
       try {
+        const { data, error } = await supabase
+          .from('perfiles')
+          .select('rol, debe_cambiar_pass')
+          .eq('id', userId)
+          .single()
+
+        if (error) throw error
+        return data
+      } catch (error) {
+        console.warn("No se pudo cargar perfil, asignando defecto:", error.message)
+        return null
+      }
+    }
+
+    const inicializarSesion = async () => {
+      try {
+        // 1. Obtenemos la sesión actual de Supabase
         const { data: { session }, error } = await supabase.auth.getSession()
 
         if (session && mounted) {
           setUser(session.user)
-          const { data: perfil } = await supabase
-            .from('perfiles')
-            .select('rol, debe_cambiar_pass')
-            .eq('id', session.user.id)
-            .single()
+
+          // 2. Buscamos el rol INMEDIATAMENTE antes de quitar el loading
+          const perfil = await fetchPerfil(session.user.id)
 
           if (perfil) {
             setRole(perfil.rol)
             setDebeCambiarPass(perfil.debe_cambiar_pass)
+          } else {
+            // FALLBACK: Si hay usuario pero falló la DB, le damos rol básico para que no explote
+            setRole('colaborador')
           }
         }
       } catch (error) {
-        console.error("Error sesión:", error)
+        console.error("Error crítico verificando sesión:", error)
       } finally {
+        // 3. SOLO AHORA, que ya tenemos user y rol, quitamos la carga
         if (mounted) setLoading(false)
       }
     }
 
-    recuperarSesion()
+    // Ejecutamos la lógica inicial
+    inicializarSesion()
 
+    // Escuchamos cambios (Login, Logout, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      if (event === 'SIGNED_IN' && session) {
-        setUser(session.user)
-        const { data } = await supabase
-            .from('perfiles')
-            .select('rol, debe_cambiar_pass')
-            .eq('id', session.user.id)
-            .single()
-
-        setRole(data?.rol || 'colaborador')
-        setDebeCambiarPass(data?.debe_cambiar_pass || false)
-
+      // Nota: INITIAL_SESSION ya lo manejamos arriba manualmente para mayor control
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setUser(session?.user ?? null)
+        if (session?.user) {
+            const perfil = await fetchPerfil(session.user.id)
+            setRole(perfil?.rol || 'colaborador')
+            setDebeCambiarPass(perfil?.debe_cambiar_pass || false)
+        }
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
         setRole(null)
@@ -59,29 +78,32 @@ export function AuthProvider({ children }) {
       }
     })
 
-    // --- [NUEVO] SEGURO ANTI-BLOQUEO ---
-    // Si por alguna razón (internet lento, error de Vercel) sigue cargando a los 5 segundos,
-    // forzamos que termine para que no se quede la pantalla azul eterna.
+    // --- SEGURO ANTI-BLOQUEO (Modificado) ---
+    // Solo fuerza el fin de carga si pasaron 6 segundos y SEGUIMOS cargando
     const safetyTimer = setTimeout(() => {
         if (loading && mounted) {
-            console.warn("⚠️ Tiempo de espera agotado. Forzando fin de carga.");
+            console.warn("⚠️ Timeout de seguridad: Forzando apertura de app.");
             setLoading(false);
         }
-    }, 5000); // 5 segundos de espera máxima
+    }, 6000);
 
-    // --- [MODIFICADO] LIMPIEZA ---
     return () => {
       mounted = false;
-      clearTimeout(safetyTimer); // <--- Importante limpiar el timer
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     }
-  }, []) // <--- Array de dependencias vacío, esto está bien
+  }, [])
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    // Optimistic Update: Limpiamos visualmente primero
     setUser(null)
     setRole(null)
     setDebeCambiarPass(false)
+    try {
+        await supabase.auth.signOut()
+    } catch (error) {
+        console.error("Error al cerrar sesión:", error)
+    }
   }
 
   const confirmarCambioPass = () => {
