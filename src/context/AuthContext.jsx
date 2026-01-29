@@ -12,7 +12,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    // Función auxiliar para obtener el perfil de forma segura
+    // Función auxiliar para obtener el perfil
     const fetchPerfil = async (userId) => {
       try {
         const { data, error } = await supabase
@@ -24,52 +24,59 @@ export function AuthProvider({ children }) {
         if (error) throw error
         return data
       } catch (error) {
-        console.warn("No se pudo cargar perfil, asignando defecto:", error.message)
+        console.error("Error al cargar perfil real:", error.message)
         return null
       }
     }
 
     const inicializarSesion = async () => {
       try {
-        // 1. Obtenemos la sesión actual de Supabase
+        // 1. Verificamos sesión en Supabase
         const { data: { session }, error } = await supabase.auth.getSession()
 
         if (session && mounted) {
           setUser(session.user)
 
-          // 2. Buscamos el rol INMEDIATAMENTE antes de quitar el loading
+          // 2. Buscamos el rol REAL en la base de datos
           const perfil = await fetchPerfil(session.user.id)
 
           if (perfil) {
+            // ÉXITO: Tenemos rol real
             setRole(perfil.rol)
             setDebeCambiarPass(perfil.debe_cambiar_pass)
           } else {
-            // FALLBACK: Si hay usuario pero falló la DB, le damos rol básico para que no explote
-            setRole('colaborador')
+            // ERROR: Hay usuario pero NO hay perfil (o falló la DB).
+            // NO asignamos 'colaborador'. Dejamos null y cerramos sesión por seguridad.
+            console.warn("Usuario autenticado sin perfil. Forzando cierre.")
+            setRole(null)
+            await supabase.auth.signOut()
+            setUser(null)
           }
         }
       } catch (error) {
-        console.error("Error crítico verificando sesión:", error)
+        console.error("Error crítico de sesión:", error)
       } finally {
-        // 3. SOLO AHORA, que ya tenemos user y rol, quitamos la carga
         if (mounted) setLoading(false)
       }
     }
 
-    // Ejecutamos la lógica inicial
     inicializarSesion()
 
-    // Escuchamos cambios (Login, Logout, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      // Nota: INITIAL_SESSION ya lo manejamos arriba manualmente para mayor control
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        setUser(session?.user ?? null)
         if (session?.user) {
+            setUser(session.user)
             const perfil = await fetchPerfil(session.user.id)
-            setRole(perfil?.rol || 'colaborador')
+
+            // Si hay perfil, asignamos rol. Si no, NULL (nada de colaborador)
+            setRole(perfil?.rol || null)
             setDebeCambiarPass(perfil?.debe_cambiar_pass || false)
+        } else {
+            // Caso raro donde hay evento pero no user
+            setUser(null)
+            setRole(null)
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
@@ -78,11 +85,10 @@ export function AuthProvider({ children }) {
       }
     })
 
-    // --- SEGURO ANTI-BLOQUEO (Modificado) ---
-    // Solo fuerza el fin de carga si pasaron 6 segundos y SEGUIMOS cargando
+    // --- SEGURO ANTI-BLOQUEO ---
     const safetyTimer = setTimeout(() => {
         if (loading && mounted) {
-            console.warn("⚠️ Timeout de seguridad: Forzando apertura de app.");
+            console.warn("⚠️ Tiempo agotado. Finalizando carga.");
             setLoading(false);
         }
     }, 6000);
@@ -95,7 +101,6 @@ export function AuthProvider({ children }) {
   }, [])
 
   const signOut = async () => {
-    // Optimistic Update: Limpiamos visualmente primero
     setUser(null)
     setRole(null)
     setDebeCambiarPass(false)
