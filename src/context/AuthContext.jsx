@@ -12,49 +12,53 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    // Función auxiliar para obtener el perfil de forma segura
-    const fetchPerfil = async (userId) => {
-      try {
-        const { data, error } = await supabase
-          .from('perfiles')
-          .select('rol, debe_cambiar_pass')
-          .eq('id', userId)
-          .single()
+    // --- MEJORA: FUNCIÓN CON REINTENTOS (RETRY) ---
+    // Si falla a la primera, lo intenta 3 veces más antes de rendirse.
+    const fetchPerfil = async (userId, intentos = 3) => {
+      for (let i = 0; i < intentos; i++) {
+        try {
+          const { data, error } = await supabase
+            .from('perfiles')
+            .select('rol, debe_cambiar_pass')
+            .eq('id', userId)
+            .single()
 
-        if (error) throw error
-        return data
-      } catch (error) {
-        // Solo avisamos en consola, no rompemos nada
-        console.warn("Aviso: No se pudo cargar el perfil inmediatamente.", error.message)
-        return null
+          // Si tenemos éxito, devolvemos el perfil
+          if (!error && data) return data;
+
+          // Si falla, esperamos un poco (500ms, 1000ms...) y reintentamos
+          if (i < intentos - 1) {
+             console.log(`Intento ${i + 1} fallido. Reintentando...`);
+             await new Promise(res => setTimeout(res, 500 * (i + 1)));
+          }
+        } catch (error) {
+          console.warn("Error de red al buscar perfil:", error)
+        }
       }
+      return null; // Si fallaron los 3 intentos, nos rendimos
     }
 
     const inicializarSesion = async () => {
       try {
-        // 1. Verificamos si hay sesión activa en Supabase
         const { data: { session }, error } = await supabase.auth.getSession()
 
         if (session && mounted) {
           setUser(session.user)
 
-          // 2. Buscamos el rol en la base de datos
+          // Usamos la función inteligente con reintentos
           const perfil = await fetchPerfil(session.user.id)
 
           if (perfil) {
             setRole(perfil.rol)
             setDebeCambiarPass(perfil.debe_cambiar_pass)
           } else {
-            // --- CORRECCIÓN CRÍTICA AQUÍ ---
-            // Si falla la carga del perfil (por lentitud o red),
-            // YA NO cerramos la sesión. Solo avisamos.
-            console.warn("Sesión activa, pero el rol tardó en cargar. Manteniendo usuario.")
-            // No hacemos signOut(), dejamos al usuario dentro.
+            console.warn("El perfil tardó demasiado. Manteniendo sesión sin rol visual por ahora.")
+            // IMPORTANTE: NO hacemos signOut. Te dejamos dentro.
             setRole(null)
           }
         }
       } catch (error) {
-        console.error("Error general de sesión:", error)
+        console.error("Error crítico:", error)
       } finally {
         if (mounted) setLoading(false)
       }
@@ -62,16 +66,14 @@ export function AuthProvider({ children }) {
 
     inicializarSesion()
 
-    // Escuchamos cambios (Login, Logout, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
             setUser(session.user)
+            // Aquí también reintentamos si es necesario
             const perfil = await fetchPerfil(session.user.id)
-
-            // Asignamos rol si existe, si no, null (pero sin echar al usuario)
             setRole(perfil?.rol || null)
             setDebeCambiarPass(perfil?.debe_cambiar_pass || false)
         }
@@ -82,36 +84,20 @@ export function AuthProvider({ children }) {
       }
     })
 
-    // --- SEGURO ANTI-BLOQUEO ---
-    const safetyTimer = setTimeout(() => {
-        if (loading && mounted) {
-            console.warn("⚠️ Tiempo de carga excedido. Abriendo aplicación.");
-            setLoading(false);
-        }
-    }, 6000);
-
     return () => {
       mounted = false;
-      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     }
   }, [])
 
   const signOut = async () => {
-    // Limpieza visual inmediata
     setUser(null)
     setRole(null)
     setDebeCambiarPass(false)
-    try {
-        await supabase.auth.signOut()
-    } catch (error) {
-        console.error("Error al cerrar sesión:", error)
-    }
+    await supabase.auth.signOut()
   }
 
-  const confirmarCambioPass = () => {
-      setDebeCambiarPass(false)
-  }
+  const confirmarCambioPass = () => setDebeCambiarPass(false)
 
   return (
     <AuthContext.Provider value={{ user, role, debeCambiarPass, loading, signOut, confirmarCambioPass }}>
