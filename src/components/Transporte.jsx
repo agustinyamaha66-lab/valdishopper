@@ -24,7 +24,7 @@ export default function Transporte() {
   const [refreshing, setRefreshing] = useState(false)
   const [notification, setNotification] = useState({ visible: false, message: '', type: 'success' })
 
-  // Usamos la fecha de hoy por defecto
+  // Usamos la fecha de hoy por defecto para el filtro
   const [fechaFiltro, setFechaFiltro] = useState(new Date().toISOString().split('T')[0])
 
   // --- FILTROS ---
@@ -40,13 +40,11 @@ export default function Transporte() {
   useEffect(() => {
     fetchViajes();
 
-    // Suscripción a cambios en tiempo real
     const channel = supabase
       .channel('tabla-transporte')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'asignaciones_transporte' }, (payload) => {
-          fetchViajes(); // Recargar lista al haber cambios
+          fetchViajes();
           if (payload.eventType === 'UPDATE') {
-              // Opcional: Avisar solo si cambió algo relevante
               console.log('Cambio detectado:', payload.new);
           }
       })
@@ -61,7 +59,6 @@ export default function Transporte() {
       .from('asignaciones_transporte')
       .select('*')
       .eq('fecha', fechaFiltro)
-      // ORDENAMIENTO: Hora Citación -> Patente -> N° Vuelta
       .order('hora_citacion', { ascending: true })
       .order('patente', { ascending: true })
       .order('numero_vuelta', { ascending: true });
@@ -83,7 +80,7 @@ export default function Transporte() {
       }
   }
 
-  // --- 2. CARGA DE EXCEL ---
+  // --- 2. CARGA DE EXCEL (LÓGICA MEJORADA DE HORA) ---
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -100,32 +97,34 @@ export default function Transporte() {
             setLoading(true);
 
             const filas = data.map(row => {
-                // Función auxiliar para buscar columnas con nombres variados (Mayúsculas/Minúsculas)
                 const getVal = (keys) => {
                     for (let k of keys) { if (row[k] !== undefined) return row[k]; }
                     return null;
                 };
 
-                // Limpieza de Hora (Manejo de decimales de Excel o texto "HH:MM")
+                // --- LIMPIEZA DE HORA ---
                 let rawHora = getVal(['CITACION', 'Citacion', 'Hora', 'hora']);
                 let horaFinal = '00:00';
 
                 if (rawHora) {
                     if (typeof rawHora === 'number') {
-                        // Excel guarda las horas como fracción del día (ej: 0.5 = 12:00)
+                        // Caso decimal Excel (ej: 0.5 es 12:00)
                         const totalSeconds = Math.floor(rawHora * 86400);
                         const hours = Math.floor(totalSeconds / 3600);
                         const minutes = Math.floor((totalSeconds % 3600) / 60);
                         horaFinal = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
                     } else {
-                        // Si viene como texto
-                        const texto = rawHora.toString().trim();
-                        // Regex simple para validar formato HH:MM
+                        // Caso Texto: Aseguramos que solo tomamos HH:MM
+                        let texto = rawHora.toString().trim();
+                        // Si viene como "14:30:00", cortamos los segundos
+                        if (texto.length > 5 && texto.includes(':')) {
+                            texto = texto.substring(0, 5);
+                        }
+                        // Validamos formato final HH:MM
                         horaFinal = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(texto) ? texto : '00:00';
                     }
                 }
 
-                // Limpieza de Vuelta
                 let rawVuelta = getVal(['VUELTA', 'Vuelta', 'vuelta']) || 1;
                 let vueltaNum = parseInt(rawVuelta) || 1;
 
@@ -136,12 +135,11 @@ export default function Transporte() {
                     local_destino: (getVal(['LOCAL', 'Local', 'CIUDAD', 'Ciudad', 'destino']) || 'Sin Asignar').toString(),
                     hora_citacion: horaFinal,
                     numero_vuelta: vueltaNum,
-                    estado: 'pendiente' // Estado inicial por defecto
+                    estado: 'pendiente'
                 };
             });
 
             const { error } = await supabase.from('asignaciones_transporte').insert(filas);
-
             if (error) throw error;
 
             showToast(`¡Éxito! ${filas.length} rutas cargadas.`, "success");
@@ -149,16 +147,16 @@ export default function Transporte() {
 
         } catch (error) {
             console.error(error);
-            showToast("Error al procesar el archivo: " + error.message, "error");
+            showToast("Error al procesar: " + error.message, "error");
         } finally {
             setLoading(false);
-            e.target.value = null; // Limpiar input
+            e.target.value = null;
         }
     };
     reader.readAsBinaryString(file);
   }
 
-  // --- LÓGICA DE FILTROS ---
+  // --- FILTROS ---
   const horasDisponibles = useMemo(() => {
       const horas = viajes.map(v => v.hora_citacion).filter(h => h);
       return [...new Set(horas)].sort();
@@ -172,7 +170,6 @@ export default function Transporte() {
       return matchHora && matchDestino;
   });
 
-  // Helper para determinar estado visual
   const getStatus = (v) => {
       if (v.hora_fin_reparto) return { label: 'EN RUTA', color: 'bg-green-600 text-white' };
       if (v.hora_salida) return { label: 'ABIERTO', color: 'bg-blue-600 text-white' };
@@ -180,12 +177,17 @@ export default function Transporte() {
       return { label: 'ESPERANDO', color: 'bg-gray-200 text-gray-500' };
   }
 
-  // Helper para formatear hora (evita errores de zona horaria usando solo la hora del string ISO)
+  // --- CORRECCIÓN DE ZONA HORARIA ---
+  // Esta función asegura que siempre veamos la hora de Chile
   const formatTime = (isoString) => {
       if (!isoString) return '-';
       try {
           const date = new Date(isoString);
-          return date.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+          return date.toLocaleTimeString('es-CL', {
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: 'America/Santiago' // <--- CLAVE: Forzamos Chile
+          });
       } catch (e) {
           return '-';
       }
@@ -202,7 +204,6 @@ export default function Transporte() {
         </h1>
 
         <div className="flex flex-wrap gap-3 items-center justify-center md:justify-end">
-             {/* SELECTOR DE HORA */}
              <select
                 value={filtroHora}
                 onChange={(e) => setFiltroHora(e.target.value)}
@@ -216,7 +217,7 @@ export default function Transporte() {
 
              <input
                 type="text"
-                placeholder="🔎 Buscar Destino / Nodo..."
+                placeholder="🔎 Buscar Destino..."
                 value={filtroDestino}
                 onChange={(e) => setFiltroDestino(e.target.value)}
                 className="text-[#1e3c72] text-xs font-bold p-2.5 rounded w-48 shadow-md border-none outline-none focus:ring-2 focus:ring-[#d63384]"
@@ -231,7 +232,7 @@ export default function Transporte() {
         </div>
       </div>
 
-      {/* BARRA DE CARGA EXCEL */}
+      {/* CARGA EXCEL */}
       <div className="bg-white p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 border-l-4 border-[#1e3c72]">
           <div>
               <h3 className="font-bold text-[#1e3c72] text-lg">PLANIFICACIÓN DE VIAJES</h3>
@@ -247,7 +248,7 @@ export default function Transporte() {
           </label>
       </div>
 
-      {/* TABLA DE RESULTADOS */}
+      {/* TABLA */}
       <div className="bg-white rounded-lg shadow overflow-hidden border-t-4 border-[#1e3c72]">
           <div className="p-3 bg-gray-50 flex justify-between items-center border-b">
               <div className="flex items-center gap-2">
@@ -285,7 +286,6 @@ export default function Transporte() {
                         <tr>
                             <td colSpan="9" className="p-12 text-center text-gray-400">
                                 <p className="font-bold text-lg">No hay rutas coincidentes</p>
-                                <p className="text-sm">Intenta cambiar los filtros o carga un nuevo Excel.</p>
                             </td>
                         </tr>
                     ) : (
@@ -309,14 +309,14 @@ export default function Transporte() {
                                     </span>
                                 </td>
 
-                                {/* LLEGADA CON GPS CORREGIDO */}
+                                {/* LLEGADA CON FORMATO CHILE Y LINK MAPA ARREGLADO */}
                                 <td className="p-3 text-center font-mono text-gray-600">
                                     {viaje.hora_llegada ? (
                                         <div className="flex flex-col items-center">
                                             <span className="font-bold text-black">{formatTime(viaje.hora_llegada)}</span>
                                             {viaje.gps_llegada_lat && viaje.gps_llegada_lon && (
                                                 <a
-                                                  href={`https://www.google.com/maps?q=${viaje.gps_llegada_lat},${viaje.gps_llegada_lon}`}
+                                                  href={`https://www.google.com/maps/search/?api=1&query=${viaje.gps_llegada_lat},${viaje.gps_llegada_lon}`}
                                                   target="_blank"
                                                   rel="noreferrer"
                                                   className="flex items-center gap-1 text-[9px] text-blue-600 font-bold hover:text-blue-800 hover:underline mt-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-100"
