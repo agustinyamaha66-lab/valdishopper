@@ -12,7 +12,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    // Función auxiliar para obtener el perfil
+    // Función auxiliar para obtener el perfil de forma segura
     const fetchPerfil = async (userId) => {
       try {
         const { data, error } = await supabase
@@ -24,37 +24,37 @@ export function AuthProvider({ children }) {
         if (error) throw error
         return data
       } catch (error) {
-        console.error("Error al cargar perfil real:", error.message)
+        // Solo avisamos en consola, no rompemos nada
+        console.warn("Aviso: No se pudo cargar el perfil inmediatamente.", error.message)
         return null
       }
     }
 
     const inicializarSesion = async () => {
       try {
-        // 1. Verificamos sesión en Supabase
+        // 1. Verificamos si hay sesión activa en Supabase
         const { data: { session }, error } = await supabase.auth.getSession()
 
         if (session && mounted) {
           setUser(session.user)
 
-          // 2. Buscamos el rol REAL en la base de datos
+          // 2. Buscamos el rol en la base de datos
           const perfil = await fetchPerfil(session.user.id)
 
           if (perfil) {
-            // ÉXITO: Tenemos rol real
             setRole(perfil.rol)
             setDebeCambiarPass(perfil.debe_cambiar_pass)
           } else {
-            // ERROR: Hay usuario pero NO hay perfil (o falló la DB).
-            // NO asignamos 'colaborador'. Dejamos null y cerramos sesión por seguridad.
-            console.warn("Usuario autenticado sin perfil. Forzando cierre.")
+            // --- CORRECCIÓN CRÍTICA AQUÍ ---
+            // Si falla la carga del perfil (por lentitud o red),
+            // YA NO cerramos la sesión. Solo avisamos.
+            console.warn("Sesión activa, pero el rol tardó en cargar. Manteniendo usuario.")
+            // No hacemos signOut(), dejamos al usuario dentro.
             setRole(null)
-            await supabase.auth.signOut()
-            setUser(null)
           }
         }
       } catch (error) {
-        console.error("Error crítico de sesión:", error)
+        console.error("Error general de sesión:", error)
       } finally {
         if (mounted) setLoading(false)
       }
@@ -62,6 +62,7 @@ export function AuthProvider({ children }) {
 
     inicializarSesion()
 
+    // Escuchamos cambios (Login, Logout, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
@@ -70,13 +71,9 @@ export function AuthProvider({ children }) {
             setUser(session.user)
             const perfil = await fetchPerfil(session.user.id)
 
-            // Si hay perfil, asignamos rol. Si no, NULL (nada de colaborador)
+            // Asignamos rol si existe, si no, null (pero sin echar al usuario)
             setRole(perfil?.rol || null)
             setDebeCambiarPass(perfil?.debe_cambiar_pass || false)
-        } else {
-            // Caso raro donde hay evento pero no user
-            setUser(null)
-            setRole(null)
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
@@ -88,7 +85,7 @@ export function AuthProvider({ children }) {
     // --- SEGURO ANTI-BLOQUEO ---
     const safetyTimer = setTimeout(() => {
         if (loading && mounted) {
-            console.warn("⚠️ Tiempo agotado. Finalizando carga.");
+            console.warn("⚠️ Tiempo de carga excedido. Abriendo aplicación.");
             setLoading(false);
         }
     }, 6000);
@@ -101,6 +98,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const signOut = async () => {
+    // Limpieza visual inmediata
     setUser(null)
     setRole(null)
     setDebeCambiarPass(false)
