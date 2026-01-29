@@ -1,19 +1,27 @@
 import { useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { Toaster } from 'sonner' // O tu librería de notificaciones
+import { Toaster } from 'sonner' // Si no tienes sonner, puedes comentar esta línea
 import Sidebar from './components/layout/sidebar'
 import Topbar from './components/layout/topbar'
+
+// --- 1. PÁGINAS PRINCIPALES (Están en /pages) ---
 import Login from './pages/Login'
 import Home from './pages/Home'
-import Inventario from './pages/Inventario'
-import Solicitudes from './pages/Solicitudes'
-import Finanzas from './pages/Finanzas'
-import Usuarios from './pages/Usuarios'
-import Config from './pages/Config'
-import Transporte from './pages/Transporte' // Tu nueva página
 
-// Componente para proteger rutas
+// --- 2. COMPONENTES OPERATIVOS (Están en /components) ---
+// Aquí conectamos tus archivos reales a las rutas
+import Transporte from './components/Transporte.jsx'
+import Usuarios from './components/AdminUsuarios.jsx' // Usamos AdminUsuarios para la ruta de Usuarios
+import Finanzas from './components/GestionCostos.jsx' // Usamos GestionCostos para la ruta de Finanzas
+
+// --- 3. PLACEHOLDERS (Para lo que aún no has creado) ---
+// Estos evitan que Vercel te de error rojo por "archivo no encontrado"
+const Inventario = () => <div className="p-10 text-2xl font-bold text-gray-500 animate-pulse">📦 Módulo de Inventario (Próximamente)</div>
+const Solicitudes = () => <div className="p-10 text-2xl font-bold text-gray-500 animate-pulse">📋 Módulo de Solicitudes (Próximamente)</div>
+const Config = () => <div className="p-10 text-2xl font-bold text-gray-500 animate-pulse">⚙️ Configuración del Sistema (Próximamente)</div>
+
+// --- LÓGICA DE PROTECCIÓN DE RUTAS ---
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, role, loading } = useAuth()
 
@@ -30,8 +38,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   // 2. SI NO HAY USUARIO, AL LOGIN
   if (!user) return <Navigate to="/login" />
 
-  // 3. SI EL ROL NO ESTÁ AUTORIZADO (O es null pero hay user), ESPERAMOS O REDIRIGIMOS
-  // Nota: Si role es null pero hay user, a veces es mejor dejar pasar a Home para que no rebote
+  // 3. SI EL ROL NO ESTÁ AUTORIZADO
   if (allowedRoles && role && !allowedRoles.includes(role)) {
      return <Navigate to="/" />
   }
@@ -43,7 +50,7 @@ function AppContent() {
   const { user, role, signOut, loading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  // Pantalla de carga global (Doble seguridad)
+  // Pantalla de carga global
   if (loading) {
      return (
       <div className="flex h-screen w-full items-center justify-center bg-[#1e3c72]">
@@ -55,7 +62,7 @@ function AppContent() {
      )
   }
 
-  // Si no está logueado, mostramos SOLO el Login
+  // Si no está logueado, Login
   if (!user) {
     return (
       <Routes>
@@ -65,7 +72,7 @@ function AppContent() {
     )
   }
 
-  // Estructura principal con Sidebar y Topbar
+  // Layout Principal
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
       {/* SIDEBAR */}
@@ -83,21 +90,21 @@ function AppContent() {
             userEmail={user.email}
             role={role}
             signOut={signOut}
-            irInicio={() => window.location.href = '/'} // O usar navigate
+            irInicio={() => window.location.href = '/'}
         />
 
         <main className="flex-1 overflow-y-auto p-6 mt-16">
           <Routes>
             <Route path="/" element={<Home role={role} cambiarVista={(v) => window.location.href = `/${v}`} />} />
 
-            {/* RUTAS OPERATIVAS */}
+            {/* --- RUTAS CONECTADAS A TUS ARCHIVOS REALES --- */}
             <Route path="/transporte" element={<ProtectedRoute allowedRoles={['admin', 'cco', 'logistica', 'colaborador']}><Transporte /></ProtectedRoute>} />
-            <Route path="/inventario" element={<ProtectedRoute allowedRoles={['admin', 'cco', 'bodega']}><Inventario /></ProtectedRoute>} />
-            <Route path="/solicitudes" element={<ProtectedRoute allowedRoles={['admin', 'cco', 'jefe_finanzas', 'colaborador']}><Solicitudes /></ProtectedRoute>} />
-
-            {/* RUTAS ADMINISTRATIVAS */}
             <Route path="/finanzas" element={<ProtectedRoute allowedRoles={['admin', 'jefe_finanzas', 'analista_finanzas']}><Finanzas /></ProtectedRoute>} />
             <Route path="/usuarios" element={<ProtectedRoute allowedRoles={['admin']}><Usuarios /></ProtectedRoute>} />
+
+            {/* --- RUTAS TEMPORALES (PLACEHOLDERS) --- */}
+            <Route path="/inventario" element={<ProtectedRoute allowedRoles={['admin', 'cco', 'bodega']}><Inventario /></ProtectedRoute>} />
+            <Route path="/solicitudes" element={<ProtectedRoute allowedRoles={['admin', 'cco', 'jefe_finanzas', 'colaborador']}><Solicitudes /></ProtectedRoute>} />
             <Route path="/config" element={<ProtectedRoute allowedRoles={['admin']}><Config /></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" />} />
