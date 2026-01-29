@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 
-// Agregamos 'irInicio' a las propiedades recibidas
 export default function Topbar({ sidebarOpen, setSidebarOpen, userEmail, role, signOut, irInicio }) {
   const [hora, setHora] = useState(new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'}))
   const [fecha, setFecha] = useState(new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' }))
@@ -33,7 +32,7 @@ export default function Topbar({ sidebarOpen, setSidebarOpen, userEmail, role, s
           )}
         </button>
 
-        {/* --- CAMBIO AQUÍ: TÍTULO CLICABLE --- */}
+        {/* TÍTULO CON REDIRECCIÓN AL HOME */}
         <div className="flex items-center gap-3">
           <button
             onClick={irInicio}
@@ -57,7 +56,7 @@ export default function Topbar({ sidebarOpen, setSidebarOpen, userEmail, role, s
 
         <div className="flex items-center gap-3 pl-2">
           <div className="text-right hidden sm:block leading-tight">
-            <p className="text-sm font-bold text-white">{userEmail || 'Usuario'}</p>
+            <p className="text-sm font-bold text-white">{userEmail || 'Cargando...'}</p>
 
             <div className="flex items-center justify-end gap-2 mt-0.5">
                <div className="flex items-center gap-1">
@@ -65,8 +64,9 @@ export default function Topbar({ sidebarOpen, setSidebarOpen, userEmail, role, s
                  <p className="text-[9px] text-green-400 font-bold uppercase tracking-wide">ONLINE</p>
                </div>
 
-               <span className="text-[9px] bg-white/10 px-1.5 rounded text-white font-bold uppercase tracking-wide border border-white/10">
-                  {role?.replace('_', ' ') || 'INVITADO'}
+               {/* AQUÍ ESTABA EL PROBLEMA: YA NO DICE INVITADO */}
+               <span className="text-[9px] bg-white/10 px-1.5 rounded text-white font-bold uppercase tracking-wide border border-white/10 min-w-[20px] text-center">
+                  {role ? role.replace('_', ' ') : '...'}
                </span>
 
                <span className="text-gray-500 text-[10px]">|</span>
