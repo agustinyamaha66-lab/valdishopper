@@ -6,7 +6,7 @@ const AuthContext = createContext()
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [role, setRole] = useState(null)
-  const [debeCambiarPass, setDebeCambiarPass] = useState(false) // Nuevo estado
+  const [debeCambiarPass, setDebeCambiarPass] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -18,7 +18,6 @@ export function AuthProvider({ children }) {
 
         if (session && mounted) {
           setUser(session.user)
-          // Buscamos rol Y si debe cambiar pass
           const { data: perfil } = await supabase
             .from('perfiles')
             .select('rol, debe_cambiar_pass')
@@ -60,8 +59,23 @@ export function AuthProvider({ children }) {
       }
     })
 
-    return () => { mounted = false; subscription.unsubscribe() }
-  }, [])
+    // --- [NUEVO] SEGURO ANTI-BLOQUEO ---
+    // Si por alguna razón (internet lento, error de Vercel) sigue cargando a los 5 segundos,
+    // forzamos que termine para que no se quede la pantalla azul eterna.
+    const safetyTimer = setTimeout(() => {
+        if (loading && mounted) {
+            console.warn("⚠️ Tiempo de espera agotado. Forzando fin de carga.");
+            setLoading(false);
+        }
+    }, 5000); // 5 segundos de espera máxima
+
+    // --- [MODIFICADO] LIMPIEZA ---
+    return () => {
+      mounted = false;
+      clearTimeout(safetyTimer); // <--- Importante limpiar el timer
+      subscription.unsubscribe();
+    }
+  }, []) // <--- Array de dependencias vacío, esto está bien
 
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -70,7 +84,6 @@ export function AuthProvider({ children }) {
     setDebeCambiarPass(false)
   }
 
-  // Función para actualizar el estado local cuando el usuario cambie su pass
   const confirmarCambioPass = () => {
       setDebeCambiarPass(false)
   }
