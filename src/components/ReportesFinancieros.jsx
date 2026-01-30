@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
 import {
-  Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement
+  Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip,Filler, Legend, ArcElement
 } from 'chart.js'
 import { Bar, Doughnut } from 'react-chartjs-2'
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
+ChartJS.register
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title,Filler, Tooltip, Legend, ArcElement)
 
 // --- DATOS MAESTROS Y UTILIDADES ---
 const localesPorServicio = {
