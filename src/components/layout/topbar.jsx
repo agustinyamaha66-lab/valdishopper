@@ -72,7 +72,7 @@ export default function Topbar({ sidebarOpen, setSidebarOpen, userEmail, role, s
                <span className="text-gray-500 text-[10px]">|</span>
 
                <button onClick={signOut} className="text-[10px] text-red-300 hover:text-white font-bold uppercase hover:underline cursor-pointer transition-colors">
-                 SALIR
+                 CERRAR SESION
                </button>
             </div>
           </div>

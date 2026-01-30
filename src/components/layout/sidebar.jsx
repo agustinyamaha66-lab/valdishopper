@@ -66,7 +66,7 @@ export default function Sidebar({ role, isOpen, toggle }) {
                 <div className="pt-4 pb-2 px-4 text-xs font-bold text-gray-600 uppercase tracking-wider">Admin</div>
 
                 <Link to="/bitacora-dashboard" className={`flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all ${isActive('/bitacora-dashboard')}`}>
-                  <BarChart2 size={20} /> <span className="font-bold text-sm">Dash Bitácora</span>
+                  <BarChart2 size={20} /> <span className="font-bold text-sm">Registro Incidencias</span>
                 </Link>
 
                 <Link to="/usuarios" className={`flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all ${isActive('/usuarios')}`}>
