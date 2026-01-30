@@ -8,7 +8,7 @@ export default function Home({ role }) {
 
   const formatRole = (r) => {
     if (!r) return '...'
-    return r.replace('_', ' ').toUpperCase()
+    return r?.replace('_', ' ').toUpperCase()
   }
 
   const ActionCard = ({ title, icon: Icon, color, path, desc }) => (
