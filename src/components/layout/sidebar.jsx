@@ -3,6 +3,18 @@ import { Home, Truck, Map, RotateCcw, ClipboardList, BarChart2, DollarSign, User
 
 export default function Sidebar({ role, isOpen, toggle }) {
   const location = useLocation()
+
+  // --- LOGS DE DEPURACIÓN ---
+  // Estos mensajes saldrán en la consola (F12) cada vez que navegues o abras el menú
+  console.log("🎨 [Sidebar] Renderizando menú lateral...");
+  console.log("👤 [Sidebar] Rol actual:", role);
+  console.log("📍 [Sidebar] Ruta activa:", location.pathname);
+
+  // Verificación rápida de permisos
+  const esAdmin = role === 'admin';
+  const esFinanzas = ['admin', 'jefe_finanzas', 'analista_finanzas'].includes(role);
+  // console.log(`🔒 [Sidebar] Permisos -> Admin: ${esAdmin}, Finanzas: ${esFinanzas}`);
+
   const isActive = (path) => location.pathname === path ? 'bg-white/10 border-l-4 border-[#d63384] text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
 
   return (
@@ -47,7 +59,8 @@ export default function Sidebar({ role, isOpen, toggle }) {
               <ClipboardList size={20} /> <span className="font-bold text-sm">Bitácora Ops</span>
             </Link>
 
-            {['admin', 'jefe_finanzas', 'analista_finanzas'].includes(role) && (
+            {/* SECCIÓN FINANZAS */}
+            {esFinanzas && (
               <>
                 <div className="pt-4 pb-2 px-4 text-xs font-bold text-gray-600 uppercase tracking-wider">Gestión</div>
 
@@ -61,7 +74,8 @@ export default function Sidebar({ role, isOpen, toggle }) {
               </>
             )}
 
-            {role === 'admin' && (
+            {/* SECCIÓN ADMIN */}
+            {esAdmin && (
               <>
                 <div className="pt-4 pb-2 px-4 text-xs font-bold text-gray-600 uppercase tracking-wider">Admin</div>
 

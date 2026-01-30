@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import bannerImg from '../assets/banner_valdishopper.jpg'
 import { Truck, Map, RotateCcw, ClipboardList, DollarSign, Users, BarChart2 } from 'lucide-react'
@@ -6,14 +6,26 @@ import { Truck, Map, RotateCcw, ClipboardList, DollarSign, Users, BarChart2 } fr
 export default function Home({ role }) {
   const navigate = useNavigate()
 
+  // --- LOG 1: VERIFICAR QUÉ LLEGA AL RENDERIZAR ---
+  // Esto se imprimirá cada vez que la página se dibuje
+  console.log("🏠 [Home] Renderizando componente. Role recibido:", role);
+
   const formatRole = (r) => {
-    if (!r) return '...'
+    // Protección contra nulos
+    if (!r) {
+        // console.warn("⚠️ [Home] El rol es nulo o vacío en formatRole");
+        return '...'
+    }
+    // Usamos el signo de interrogación (?) por seguridad doble
     return r?.replace('_', ' ').toUpperCase()
   }
 
   const ActionCard = ({ title, icon: Icon, color, path, desc }) => (
     <button
-      onClick={() => navigate(path)}
+      onClick={() => {
+        console.log(`🔘 [Home] Navegando a: ${path}`);
+        navigate(path)
+      }}
       className="group relative bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100 overflow-hidden text-left w-full"
     >
       <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: color }}></div>
@@ -89,7 +101,8 @@ export default function Home({ role }) {
           path="/bitacora-operacion"
         />
 
-        {/* SOLO FINANZAS/ADMIN */}
+        {/* LOGICA DE VISUALIZACIÓN SEGÚN ROL */}
+        {/* Aquí imprimimos en consola si se cumple la condición o no */}
         {['admin', 'jefe_finanzas'].includes(role) && (
           <ActionCard
             title="Gestión Costos"
@@ -100,7 +113,6 @@ export default function Home({ role }) {
           />
         )}
 
-        {/* SOLO ADMIN */}
         {role === 'admin' && (
           <>
             <ActionCard

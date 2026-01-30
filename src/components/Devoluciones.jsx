@@ -11,21 +11,55 @@ export default function Devoluciones() {
   const [editando, setEditando] = useState(null) // Guarda el objeto que se está editando
 
   useEffect(() => {
-    fetchData();
-    // Suscripción en vivo para nuevos registros o cambios
-    const channel = supabase
-      .channel('devoluciones-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'devoluciones_bodega' }, (payload) => {
-          fetchData(); // Recargar datos frescos
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); }
+    let canal = null;
+    console.log("🟢 [Devoluciones] Componente montado. Iniciando carga...");
+
+    const setup = async () => {
+        await fetchData();
+
+        // Suscripción en vivo
+        canal = supabase
+            .channel('devoluciones-live')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'devoluciones_bodega' },
+                (payload) => {
+                    console.log("🔔 [Devoluciones] Cambio detectado en tiempo real:", payload);
+                    fetchData(); // Recargar datos frescos
+                }
+            )
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log("📡 [Devoluciones] Conectado a Realtime correctamente.");
+                }
+            });
+    };
+
+    setup();
+
+    return () => {
+        if (canal) {
+            console.log("🔌 [Devoluciones] Cerrando canal Realtime...");
+            supabase.removeChannel(canal);
+        }
+    }
   }, []);
 
   const fetchData = async () => {
     setLoading(true);
-    const { data } = await supabase.from('devoluciones_bodega').select('*').order('created_at', { ascending: false });
-    if (data) setRegistros(data);
+    console.log("🔍 [Devoluciones] Buscando registros en base de datos...");
+
+    const { data, error } = await supabase
+        .from('devoluciones_bodega')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("❌ [Devoluciones] Error al cargar datos:", error);
+    } else {
+        console.log(`✅ [Devoluciones] ${data?.length || 0} registros cargados.`);
+        if (data) setRegistros(data);
+    }
+
     setTimeout(() => setLoading(false), 500);
   }
 
@@ -33,6 +67,8 @@ export default function Devoluciones() {
   const guardarEdicion = async (e) => {
       e.preventDefault();
       if (!editando) return;
+
+      console.log("💾 [Devoluciones] Guardando cambios...", editando);
 
       const { error } = await supabase
           .from('devoluciones_bodega')
@@ -43,9 +79,11 @@ export default function Devoluciones() {
           .eq('id', editando.id);
 
       if (!error) {
+          console.log("✨ [Devoluciones] Edición exitosa.");
           setEditando(null); // Cerrar modal
           fetchData(); // Refrescar datos
       } else {
+          console.error("❌ [Devoluciones] Error al actualizar:", error);
           alert("Error al actualizar: " + error.message);
       }
   }
@@ -81,7 +119,7 @@ export default function Devoluciones() {
 
             {/* REFRESCAR */}
             <button
-                onClick={fetchData}
+                onClick={() => { console.log("🔄 [Devoluciones] Botón actualizar presionado"); fetchData(); }}
                 className={`bg-[#d63384] hover:bg-pink-600 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition-all active:scale-95 flex items-center gap-2 ${loading ? 'opacity-80 cursor-wait' : ''}`}
             >
                 <span className={`text-lg leading-none ${loading ? 'animate-spin' : ''}`}>↻</span>
@@ -120,14 +158,17 @@ export default function Devoluciones() {
                                   <td className="px-6 py-4 font-bold text-gray-800">{item.id_manifiesto}</td>
                                   <td className="px-6 py-4 text-center">
                                       {item.foto_url ? (
-                                          <button onClick={() => setZoomImagen(item.foto_url)} className="text-blue-600 hover:text-[#d63384] font-bold text-xs flex items-center justify-center gap-1 mx-auto transition-colors">
+                                          <button
+                                            onClick={() => { console.log("📷 [Devoluciones] Abriendo foto:", item.foto_url); setZoomImagen(item.foto_url); }}
+                                            className="text-blue-600 hover:text-[#d63384] font-bold text-xs flex items-center justify-center gap-1 mx-auto transition-colors"
+                                          >
                                               <span className="text-lg">📷</span> VER FOTO
                                           </button>
                                       ) : <span className="text-gray-300 text-xs italic">Sin adjunto</span>}
                                   </td>
                                   <td className="px-6 py-4 text-center">
                                       <button
-                                        onClick={() => setEditando(item)}
+                                        onClick={() => { console.log("✏️ [Devoluciones] Editando ID:", item.id); setEditando(item); }}
                                         className="bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-blue-600 p-2 rounded-full transition-colors shadow-sm border border-gray-200"
                                         title="Editar Registro"
                                       >
