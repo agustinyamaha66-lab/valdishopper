@@ -11,37 +11,41 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    // Función inteligente con reintentos para evitar errores de red
-    const fetchPerfil = async (userId, intentos = 3) => {
-      for (let i = 0; i < intentos; i++) {
-        try {
-          const { data, error } = await supabase
-            .from('perfiles')
-            .select('rol')
-            .eq('id', userId)
-            .single()
+    const fetchPerfil = async (userId) => {
+      try {
+        const { data, error } = await supabase
+          .from('perfiles')
+          .select('rol')
+          .eq('id', userId)
+          .single()
 
-          if (!error && data) return data;
-
-          // Esperar un poco antes de reintentar
-          if (i < intentos - 1) await new Promise(res => setTimeout(res, 500));
-        } catch (e) {
-          console.warn(`Intento ${i+1} fallido:`, e)
-        }
+        if (error || !data) return null;
+        return data;
+      } catch (e) {
+        return null;
       }
-      return null;
     }
 
     const inicializarSesion = async () => {
       try {
+        // 1. Verificamos si hay sesión guardada en el navegador
         const { data: { session } } = await supabase.auth.getSession()
 
         if (session && mounted) {
-          setUser(session.user)
-          // Buscamos el rol
+          // 2. Si hay sesión, intentamos buscar el perfil/rol
           const perfil = await fetchPerfil(session.user.id)
-          // Si encuentra rol lo pone, si no, lo deja null (pero NO te saca)
-          if (perfil) setRole(perfil.rol)
+
+          if (perfil) {
+            // A) TODO ESTÁ BIEN: Hay usuario y hay rol
+            setUser(session.user)
+            setRole(perfil.rol)
+          } else {
+            // B) ERROR ZOMBIE: Hay usuario pero NO hay rol (borraste la DB)
+            console.warn("Usuario sin perfil detectado. Cerrando sesión automática.")
+            await supabase.auth.signOut() // <--- ESTO ARREGLA LA PANTALLA BLANCA
+            setUser(null)
+            setRole(null)
+          }
         }
       } catch (error) {
         console.error("Error de sesión:", error)
@@ -57,9 +61,15 @@ export function AuthProvider({ children }) {
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
          if (session?.user) {
-            setUser(session.user)
             const perfil = await fetchPerfil(session.user.id)
-            setRole(perfil?.rol || null)
+            if (perfil) {
+                setUser(session.user)
+                setRole(perfil.rol)
+            } else {
+                // Protección extra por si acaso
+                setUser(session.user)
+                setRole(null)
+            }
          }
       } else if (event === 'SIGNED_OUT') {
          setUser(null)
