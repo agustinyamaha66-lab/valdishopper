@@ -44,9 +44,6 @@ export default function Transporte() {
       .channel('tabla-transporte')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'asignaciones_transporte' }, (payload) => {
           fetchViajes();
-          if (payload.eventType === 'UPDATE') {
-              console.log('Cambio detectado:', payload.new);
-          }
       })
       .subscribe();
 
@@ -58,7 +55,7 @@ export default function Transporte() {
     const { data } = await supabase
       .from('asignaciones_transporte')
       .select('*')
-      .eq('fecha', fechaFiltro)
+      .eq('fecha', fechaFiltro) // Solo trae los de la fecha seleccionada
       .order('hora_citacion', { ascending: true })
       .order('patente', { ascending: true })
       .order('numero_vuelta', { ascending: true });
@@ -80,7 +77,7 @@ export default function Transporte() {
       }
   }
 
-  // --- 2. CARGA DE EXCEL (LÓGICA MEJORADA DE HORA) ---
+  // --- 2. CARGA DE EXCEL (AQUÍ ESTÁ LA INTEGRACIÓN) ---
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -96,67 +93,66 @@ export default function Transporte() {
             if (!data.length) return showToast("El Excel está vacío", "error");
             setLoading(true);
 
+            // MAPEAMOS LOS DATOS SEGÚN TUS COLUMNAS: Ciudad, Nodo, Patente, Citación
             const filas = data.map(row => {
-                const getVal = (keys) => {
-                    for (let k of keys) { if (row[k] !== undefined) return row[k]; }
-                    return null;
-                };
 
-                // --- LIMPIEZA DE HORA ---
-                let rawHora = getVal(['CITACION', 'Citacion', 'Hora', 'hora']);
+                // 1. Limpieza Inteligente de la Hora (Citación)
+                // Acepta columnas: Citación, Citacion, citacion
+                let rawHora = row['Citación'] || row['Citacion'] || row['citacion'] || row['Hora'];
                 let horaFinal = '00:00';
 
                 if (rawHora) {
                     if (typeof rawHora === 'number') {
-                        // Caso decimal Excel (ej: 0.5 es 12:00)
+                        // Si Excel manda un decimal (ej: 0.5 para las 12:00)
                         const totalSeconds = Math.floor(rawHora * 86400);
                         const hours = Math.floor(totalSeconds / 3600);
                         const minutes = Math.floor((totalSeconds % 3600) / 60);
                         horaFinal = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
                     } else {
-                        // Caso Texto: Aseguramos que solo tomamos HH:MM
+                        // Si Excel manda texto (ej: "08:30:00")
                         let texto = rawHora.toString().trim();
-                        // Si viene como "14:30:00", cortamos los segundos
                         if (texto.length > 5 && texto.includes(':')) {
-                            texto = texto.substring(0, 5);
+                            texto = texto.substring(0, 5); // Cortamos a HH:MM
                         }
-                        // Validamos formato final HH:MM
-                        horaFinal = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(texto) ? texto : '00:00';
+                        horaFinal = texto;
                     }
                 }
 
-                let rawVuelta = getVal(['VUELTA', 'Vuelta', 'vuelta']) || 1;
-                let vueltaNum = parseInt(rawVuelta) || 1;
-
+                // 2. Construcción del Objeto para Supabase
                 return {
-                    fecha: fechaFiltro,
-                    patente: (getVal(['PATENTE', 'Patente', 'patente']) || 'S/P').toString().trim().toUpperCase(),
-                    nodo: (getVal(['NODO', 'Nodo', 'nodo']) || 'General').toString(),
-                    local_destino: (getVal(['LOCAL', 'Local', 'CIUDAD', 'Ciudad', 'destino']) || 'Sin Asignar').toString(),
+                    fecha: fechaFiltro, // Usa la fecha seleccionada en el filtro (normalmente hoy)
+
+                    // Mapeo directo de tus columnas
+                    local: (row['Ciudad'] || row['ciudad'] || 'Sin Ciudad').toString(),
+                    nodo: (row['Nodo'] || row['nodo'] || '').toString(),
+                    patente: (row['Patente'] || row['patente'] || 'S/P').toString().trim().toUpperCase(),
                     hora_citacion: horaFinal,
-                    numero_vuelta: vueltaNum,
+
+                    // Valores por defecto
+                    numero_vuelta: 1,
                     estado: 'pendiente'
                 };
             });
 
+            // Insertamos en bloque a Supabase
             const { error } = await supabase.from('asignaciones_transporte').insert(filas);
             if (error) throw error;
 
             showToast(`¡Éxito! ${filas.length} rutas cargadas.`, "success");
-            fetchViajes();
+            fetchViajes(); // Refrescamos la tabla
 
         } catch (error) {
             console.error(error);
             showToast("Error al procesar: " + error.message, "error");
         } finally {
             setLoading(false);
-            e.target.value = null;
+            e.target.value = null; // Limpiamos el input
         }
     };
     reader.readAsBinaryString(file);
   }
 
-  // --- FILTROS ---
+  // --- FILTROS VISUALES ---
   const horasDisponibles = useMemo(() => {
       const horas = viajes.map(v => v.hora_citacion).filter(h => h);
       return [...new Set(horas)].sort();
@@ -165,7 +161,7 @@ export default function Transporte() {
   const viajesFiltrados = viajes.filter(v => {
       const matchHora = !filtroHora || (v.hora_citacion && v.hora_citacion === filtroHora);
       const matchDestino = !filtroDestino ||
-                           (v.local_destino && v.local_destino.toLowerCase().includes(filtroDestino.toLowerCase())) ||
+                           (v.local && v.local.toLowerCase().includes(filtroDestino.toLowerCase())) ||
                            (v.nodo && v.nodo.toString().toLowerCase().includes(filtroDestino.toLowerCase()));
       return matchHora && matchDestino;
   });
@@ -177,8 +173,7 @@ export default function Transporte() {
       return { label: 'ESPERANDO', color: 'bg-gray-200 text-gray-500' };
   }
 
-  // --- CORRECCIÓN DE ZONA HORARIA ---
-  // Esta función asegura que siempre veamos la hora de Chile
+  // Función para mostrar la hora en formato Chile
   const formatTime = (isoString) => {
       if (!isoString) return '-';
       try {
@@ -186,7 +181,7 @@ export default function Transporte() {
           return date.toLocaleTimeString('es-CL', {
               hour: '2-digit',
               minute: '2-digit',
-              timeZone: 'America/Santiago' // <--- CLAVE: Forzamos Chile
+              timeZone: 'America/Santiago'
           });
       } catch (e) {
           return '-';
@@ -244,6 +239,7 @@ export default function Transporte() {
               ) : (
                   <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg> CARGAR EXCEL</>
               )}
+              {/* INPUT FILE OCULTO */}
               <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} className="hidden" />
           </label>
       </div>
@@ -300,8 +296,9 @@ export default function Transporte() {
                                     </span>
                                 </td>
                                 <td className="p-3">
-                                    <div className="font-bold text-gray-800 leading-tight">{viaje.local_destino}</div>
-                                    <div className="text-[10px] text-gray-500 font-bold uppercase mt-0.5">{viaje.nodo}</div>
+                                    {/* Aquí mostramos Local y Nodo */}
+                                    <div className="font-bold text-gray-800 leading-tight">{viaje.local}</div>
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase mt-0.5">Nodo: {viaje.nodo}</div>
                                 </td>
                                 <td className="p-3 text-center">
                                     <span className="bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold">
@@ -309,14 +306,14 @@ export default function Transporte() {
                                     </span>
                                 </td>
 
-                                {/* LLEGADA CON FORMATO CHILE Y LINK MAPA ARREGLADO */}
+                                {/* LLEGADA Y MAPA */}
                                 <td className="p-3 text-center font-mono text-gray-600">
                                     {viaje.hora_llegada ? (
                                         <div className="flex flex-col items-center">
                                             <span className="font-bold text-black">{formatTime(viaje.hora_llegada)}</span>
                                             {viaje.gps_llegada_lat && viaje.gps_llegada_lon && (
                                                 <a
-                                                  href={`https://www.google.com/maps/search/?api=1&query=${viaje.gps_llegada_lat},${viaje.gps_llegada_lon}`}
+                                                  href={`https://www.google.com/maps?q=${viaje.gps_llegada_lat},${viaje.gps_llegada_lon}`}
                                                   target="_blank"
                                                   rel="noreferrer"
                                                   className="flex items-center gap-1 text-[9px] text-blue-600 font-bold hover:text-blue-800 hover:underline mt-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-100"
