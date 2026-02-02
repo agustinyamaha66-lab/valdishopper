@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+// Usamos lucide-react para iconos más nítidos (estándar enterprise)
+import { Menu, X, LogOut, Clock, Calendar, User } from "lucide-react";
 
 export default function Topbar({ sidebarOpen, setSidebarOpen }) {
   const navigate = useNavigate();
@@ -42,82 +44,97 @@ export default function Topbar({ sidebarOpen, setSidebarOpen }) {
 
   return (
     <header
-      className={`fixed top-0 right-0 h-16 bg-[#1e3c72] text-white shadow-lg z-40 flex items-center justify-between px-4 transition-all duration-300 border-b border-blue-900 ${
-        isOpen ? "left-64" : "left-0"
-      }`}
+      className={`fixed top-0 right-0 h-16 z-40 flex items-center justify-between px-6 transition-all duration-300
+      bg-[#1e3c72]/85 backdrop-blur-md border-b border-white/10 shadow-lg
+      ${isOpen ? "left-64" : "left-0"}`}
     >
-      {/* IZQUIERDA */}
-      <div className="flex items-center gap-4">
+      {/* --- IZQUIERDA: Toggle y Marca --- */}
+      <div className="flex items-center gap-5">
         <button
           type="button"
           onClick={toggleSidebar}
-          className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors focus:outline-none"
+          className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-all focus:outline-none focus:ring-2 focus:ring-white/20"
         >
-          {isOpen ? (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-            </svg>
-          ) : (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          )}
+          {isOpen ? <X size={24} strokeWidth={1.5} /> : <Menu size={24} strokeWidth={1.5} />}
         </button>
+
+        {/* Separador Vertical */}
+        <div className="h-8 w-px bg-white/10 hidden sm:block"></div>
 
         <button
           type="button"
           onClick={irInicio}
-          className="text-left focus:outline-none hover:opacity-80 transition-opacity group"
+          className="text-left group focus:outline-none"
           title="Ir al Inicio"
         >
-          <div className="leading-tight">
-            <h2 className="text-lg font-black tracking-tight uppercase group-hover:text-pink-200 transition-colors">
-              Panel CCO
+          <div className="flex flex-col">
+            <h2 className="text-lg font-bold text-white tracking-tight leading-none group-hover:text-blue-100 transition-colors">
+              CCO <span className="font-light opacity-70">Panel</span>
             </h2>
-            <p className="text-[10px] text-[#d63384] font-bold uppercase tracking-widest group-hover:text-white transition-colors">
+            <p className="text-[10px] text-[#d63384] font-bold uppercase tracking-[0.2em] group-hover:text-pink-300 transition-colors mt-0.5">
               Valdishopper
             </p>
           </div>
         </button>
       </div>
 
-      {/* DERECHA */}
+      {/* --- DERECHA: Datos y Usuario --- */}
       <div className="flex items-center gap-6">
-        <div className="hidden md:flex flex-col items-end border-r border-white/20 pr-6">
-          <span className="text-xl font-mono font-bold tracking-widest leading-none">{hora}</span>
-          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider mt-1">
-            {fecha}
-          </span>
+
+        {/* Widget de Fecha y Hora (Oculto en móvil) */}
+        <div className="hidden md:flex items-center gap-4 text-right border-r border-white/10 pr-6">
+          <div className="flex flex-col items-end">
+            <div className="flex items-center gap-2 text-white/90">
+              <span className="text-lg font-mono font-medium leading-none">{hora}</span>
+              <Clock size={14} className="text-[#d63384] opacity-80" />
+            </div>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="text-[10px] font-medium text-white/60 uppercase tracking-wide">
+                {fecha}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 pl-2">
-          <div className="text-right hidden sm:block leading-tight">
-            <p className="text-sm font-bold text-white">{userEmail || "Cargando..."}</p>
+        {/* Perfil de Usuario */}
+        <div className="flex items-center gap-4 pl-2">
 
+          {/* Info Texto (Nombre y Rol) */}
+          <div className="hidden sm:block text-right">
+            <p className="text-sm font-semibold text-white leading-tight truncate max-w-[150px]">
+              {userEmail}
+            </p>
             <div className="flex items-center justify-end gap-2 mt-0.5">
               <div className="flex items-center gap-1">
-                <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
-                <p className="text-[9px] text-green-400 font-bold uppercase tracking-wide">ONLINE</p>
+                 <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <span className="text-[9px] text-green-300 font-bold uppercase tracking-wide">Online</span>
               </div>
-
-              <span className="text-[9px] bg-white/10 px-1.5 rounded text-white font-bold uppercase tracking-wide border border-white/10 min-w-[20px] text-center">
-                {safeRole ? safeRole.replace("_", " ") : "..."}
+              <span className="text-[9px] px-1.5 py-px rounded bg-white/10 text-blue-100 border border-white/10 uppercase tracking-wider">
+                 {safeRole ? safeRole.replace("_", " ") : "..."}
               </span>
-
-              <span className="text-gray-500 text-[10px]">|</span>
-
-              <button
-                type="button"
-                onClick={signOut}
-                className="text-[10px] text-red-300 hover:text-white font-bold uppercase hover:underline cursor-pointer transition-colors"
-              >
-                CERRAR SESIÓN
-              </button>
             </div>
           </div>
 
-          <div className="h-10 w-10 bg-gradient-to-br from-[#d63384] to-purple-600 rounded-full flex items-center justify-center border-2 border-white/20 shadow-lg font-bold text-sm tracking-tighter">
-            {initials}
+          {/* Avatar y Dropdown */}
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#d63384] to-[#1e3c72] p-[2px] shadow-lg">
+               <div className="h-full w-full rounded-full bg-[#1e3c72] flex items-center justify-center border border-white/20">
+                  <span className="font-bold text-sm text-white">{initials}</span>
+               </div>
+            </div>
+
+            {/* Botón Salir (Icono elegante) */}
+            <button
+              type="button"
+              onClick={signOut}
+              className="group flex items-center justify-center p-2 rounded-lg text-white/60 hover:text-red-400 hover:bg-white/5 transition-all"
+              title="Cerrar Sesión"
+            >
+              <LogOut size={20} strokeWidth={1.5} className="group-hover:scale-110 transition-transform" />
+            </button>
           </div>
         </div>
       </div>
