@@ -1,10 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 
-// Ajusta este import según tu proyecto:
-// Opción A (común): "./components/Layout/Layout"
-// Opción B: "./components/Layout"
-import Layout from "./components/Layout/";
+import Layout from "./components/Layout/Layout";
 
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -19,8 +16,9 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (loading) return <div style={{ padding: 16 }}>Cargando...</div>;
   if (!user) return <Navigate to="/login" replace />;
 
-  if (allowedRoles && !role) return <Navigate to="/" replace />;
-  if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/" replace />;
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    return <Navigate to="/" replace />;
+  }
 
   return children;
 };
@@ -48,7 +46,7 @@ export default function App() {
           }
         />
 
-        {/* TODA la app protegida con Layout (sidebar/topbar) */}
+        {/* APP protegida con Layout (Sidebar + Topbar) */}
         <Route
           element={
             <ProtectedRoute>
@@ -58,6 +56,7 @@ export default function App() {
         >
           <Route path="/" element={<Home />} />
           <Route path="/transporte" element={<Transporte />} />
+
           <Route
             path="/ruteo"
             element={
@@ -66,6 +65,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/reportes-financieros"
             element={
