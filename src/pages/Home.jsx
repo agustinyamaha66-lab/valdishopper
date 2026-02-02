@@ -1,19 +1,27 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import bannerImg from "../assets/banner_valdishopper.jpg";
-import { Truck, Map, RotateCcw, ClipboardList, DollarSign, Users, BarChart2 } from "lucide-react";
+import {
+  Truck,
+  Map,
+  RotateCcw,
+  ClipboardList,
+  DollarSign,
+  Users,
+  BarChart2,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Home() {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { role, user } = useAuth(); // ⬅️ usamos user
 
-  console.log("🏠 [Home] Renderizando componente. Role desde AuthContext:", role);
+  console.log("🏠 [Home] Renderizando componente. User:", user, "Role:", role);
 
-  const formatRole = (r) => {
-    if (!r) return "...";
-    return r.replace("_", " ").toUpperCase();
-  };
+  // 👉 nombre desde el correo (todo antes del @)
+  const displayName = user?.email
+    ? user.email.split("@")[0]
+    : "...";
 
   const ActionCard = ({ title, icon: Icon, color, path, desc }) => (
     <button
@@ -24,7 +32,10 @@ export default function Home() {
       }}
       className="group relative bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100 overflow-hidden text-left w-full"
     >
-      <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: color }}></div>
+      <div
+        className="absolute top-0 left-0 w-full h-1"
+        style={{ backgroundColor: color }}
+      ></div>
 
       <div className="flex justify-between items-start relative z-10">
         <div className="space-y-3">
@@ -56,7 +67,7 @@ export default function Home() {
             <h1 className="text-3xl font-black text-[#1e3c72] leading-tight">
               Hola,{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-                {formatRole(role)}
+                {displayName}
               </span>
             </h1>
             <p className="text-gray-500 mt-2 text-sm leading-relaxed">
@@ -66,7 +77,11 @@ export default function Home() {
         </div>
 
         <div className="lg:col-span-2 relative h-48 lg:h-56 rounded-3xl overflow-hidden shadow-lg border-2 border-white group">
-          <img src={bannerImg} alt="Banner" className="w-full h-full object-cover" />
+          <img
+            src={bannerImg}
+            alt="Banner"
+            className="w-full h-full object-cover"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-[#1e3c72]/60 to-transparent"></div>
         </div>
       </div>
@@ -74,19 +89,61 @@ export default function Home() {
       <div className="h-px bg-gray-200 w-full my-6"></div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        <ActionCard title="Torre de Control" desc="Gestión de transporte" icon={Truck} color="#d63384" path="/transporte" />
-        <ActionCard title="Ruteo" desc="Mapas y rutas" icon={Map} color="#2563eb" path="/ruteo" />
-        <ActionCard title="Devoluciones" desc="Control de retornos" icon={RotateCcw} color="#f59e0b" path="/devoluciones" />
-        <ActionCard title="Bitácora Ops" desc="Registro diario" icon={ClipboardList} color="#10b981" path="/bitacora-operacion" />
+        <ActionCard
+          title="Torre de Control"
+          desc="Gestión de transporte"
+          icon={Truck}
+          color="#d63384"
+          path="/transporte"
+        />
+        <ActionCard
+          title="Ruteo"
+          desc="Mapas y rutas"
+          icon={Map}
+          color="#2563eb"
+          path="/ruteo"
+        />
+        <ActionCard
+          title="Devoluciones"
+          desc="Control de retornos"
+          icon={RotateCcw}
+          color="#f59e0b"
+          path="/devoluciones"
+        />
+        <ActionCard
+          title="Bitácora Ops"
+          desc="Registro diario"
+          icon={ClipboardList}
+          color="#10b981"
+          path="/bitacora-operacion"
+        />
 
         {esFinanzas && (
-          <ActionCard title="Gestión Costos" desc="Finanzas operativas" icon={DollarSign} color="#16a34a" path="/finanzas" />
+          <ActionCard
+            title="Gestión Costos"
+            desc="Finanzas operativas"
+            icon={DollarSign}
+            color="#16a34a"
+            path="/finanzas"
+          />
         )}
 
         {role === "admin" && (
           <>
-            <ActionCard title="Usuarios" desc="Roles y accesos" icon={Users} color="#dc2626" path="/usuarios" />
-            <ActionCard title="Dashboard Bitácora" desc="Métricas generales" icon={BarChart2} color="#7c3aed" path="/bitacora-dashboard" />
+            <ActionCard
+              title="Usuarios"
+              desc="Roles y accesos"
+              icon={Users}
+              color="#dc2626"
+              path="/usuarios"
+            />
+            <ActionCard
+              title="Dashboard Bitácora"
+              desc="Métricas generales"
+              icon={BarChart2}
+              color="#7c3aed"
+              path="/bitacora-dashboard"
+            />
           </>
         )}
       </div>

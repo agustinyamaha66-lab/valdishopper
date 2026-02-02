@@ -195,7 +195,7 @@ export default function Transporte() {
       {/* HEADER */}
       <div className="bg-[#1e3c72] text-white p-4 rounded-t-xl flex flex-col md:flex-row justify-between items-center shadow-lg border-b-4 border-[#d63384] mb-6 gap-4">
         <h1 className="text-2xl font-black tracking-tighter flex items-center gap-2">
-            📡 TORRE DE CONTROL <span className="text-sm bg-[#d63384] px-2 py-1 rounded">V1.0</span>
+            TORRE DE CONTROL CATEX<span ></span>
         </h1>
 
         <div className="flex flex-wrap gap-3 items-center justify-center md:justify-end">
