@@ -8,7 +8,6 @@ export default function Home() {
   const navigate = useNavigate();
   const { role } = useAuth();
 
-  // LOG: verificar rol que llega desde AuthContext
   console.log("🏠 [Home] Renderizando componente. Role desde AuthContext:", role);
 
   const formatRole = (r) => {
@@ -18,6 +17,7 @@ export default function Home() {
 
   const ActionCard = ({ title, icon: Icon, color, path, desc }) => (
     <button
+      type="button"
       onClick={() => {
         console.log(`🔘 [Home] Navegando a: ${path}`);
         navigate(path);
@@ -46,9 +46,10 @@ export default function Home() {
     </button>
   );
 
+  const esFinanzas = ["admin", "jefe_finanzas", "analista_finanzas"].includes(role);
+
   return (
     <div className="animate-fade-in max-w-7xl mx-auto space-y-8 pb-12">
-      {/* HEADER */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 flex flex-col justify-center space-y-4 p-2">
           <div>
@@ -72,16 +73,13 @@ export default function Home() {
 
       <div className="h-px bg-gray-200 w-full my-6"></div>
 
-      {/* ACCIONES */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {/* TODOS */}
         <ActionCard title="Torre de Control" desc="Gestión de transporte" icon={Truck} color="#d63384" path="/transporte" />
         <ActionCard title="Ruteo" desc="Mapas y rutas" icon={Map} color="#2563eb" path="/ruteo" />
         <ActionCard title="Devoluciones" desc="Control de retornos" icon={RotateCcw} color="#f59e0b" path="/devoluciones" />
         <ActionCard title="Bitácora Ops" desc="Registro diario" icon={ClipboardList} color="#10b981" path="/bitacora-operacion" />
 
-        {/* SEGÚN ROL */}
-        {["admin", "jefe_finanzas"].includes(role) && (
+        {esFinanzas && (
           <ActionCard title="Gestión Costos" desc="Finanzas operativas" icon={DollarSign} color="#16a34a" path="/finanzas" />
         )}
 

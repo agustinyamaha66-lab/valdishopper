@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { useState } from "react";
 import { useAuth } from "./context/AuthContext";
 
 import Sidebar from "./components/layout/sidebar.jsx";
@@ -9,7 +10,12 @@ import Home from "./pages/Home";
 
 import Transporte from "./components/Transporte";
 import Ruteo from "./components/Ruteo";
+import Devoluciones from "./components/Devoluciones";
+import OperacionBitacora from "./components/OperacionBitacora";
+import GestionCostos from "./components/GestionCostos";
 import ReportesFinancieros from "./components/ReportesFinancieros";
+import AdminUsuarios from "./components/AdminUsuarios";
+import DashboardBitacora from "./components/DashboardBitacora";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, role, loading } = useAuth();
@@ -17,8 +23,9 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (loading) return <div style={{ padding: 16 }}>Cargando...</div>;
   if (!user) return <Navigate to="/login" replace />;
 
-  if (allowedRoles && !role) return <Navigate to="/" replace />;
-  if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/" replace />;
+  if (allowedRoles && (!role || !allowedRoles.includes(role))) {
+    return <Navigate to="/" replace />;
+  }
 
   return children;
 };
@@ -32,21 +39,30 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
-const AppLayout = ({ children }) => (
-  <div className="flex min-h-screen">
-    <Sidebar />
-    <div className="flex flex-col flex-1">
-      <Topbar />
-      <main className="flex-1 p-6 bg-gray-50">{children}</main>
+const AppLayout = ({ children }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  return (
+    <div className="min-h-screen">
+      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      <Topbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+
+      {/* Para que el contenido no quede debajo del Topbar */}
+      <div className={`${sidebarOpen ? "md:pl-64" : ""} pt-16`}>
+        <main className="p-6 bg-gray-50 min-h-[calc(100vh-64px)]">{children}</main>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default function App() {
+  // Roles con acceso a finanzas según tu lógica anterior
+  const FINANZAS_ROLES = ["admin", "jefe_finanzas", "analista_finanzas"];
+
   return (
     <Router>
       <Routes>
-        {/* Login sin layout */}
+        {/* LOGIN sin layout */}
         <Route
           path="/login"
           element={
@@ -56,7 +72,7 @@ export default function App() {
           }
         />
 
-        {/* App con layout */}
+        {/* HOME */}
         <Route
           path="/"
           element={
@@ -68,6 +84,7 @@ export default function App() {
           }
         />
 
+        {/* OPERACIONES */}
         <Route
           path="/transporte"
           element={
@@ -91,9 +108,43 @@ export default function App() {
         />
 
         <Route
+          path="/devoluciones"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Devoluciones />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/bitacora-operacion"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <OperacionBitacora />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* FINANZAS / GESTIÓN */}
+        <Route
+          path="/finanzas"
+          element={
+            <ProtectedRoute allowedRoles={FINANZAS_ROLES}>
+              <AppLayout>
+                <GestionCostos />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/reportes-financieros"
           element={
-            <ProtectedRoute allowedRoles={["admin"]}>
+            <ProtectedRoute allowedRoles={FINANZAS_ROLES}>
               <AppLayout>
                 <ReportesFinancieros />
               </AppLayout>
@@ -101,6 +152,30 @@ export default function App() {
           }
         />
 
+        {/* ADMIN */}
+        <Route
+          path="/usuarios"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AppLayout>
+                <AdminUsuarios />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/bitacora-dashboard"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AppLayout>
+                <DashboardBitacora />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
