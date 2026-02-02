@@ -2,42 +2,45 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import * as XLSX from "xlsx";
 
-// ✅ Toast pro (sin perder tu estilo)
+// ✅ Toast enterprise (sin romper tu lógica)
 const ToastNotification = ({ notification, onClose }) => {
   if (!notification.visible) return null;
+
   const colors = {
-    success: "bg-green-100 border-green-500 text-green-800",
-    error: "bg-red-100 border-red-500 text-red-800",
-    info: "bg-blue-100 border-blue-500 text-blue-800",
-    warning: "bg-yellow-100 border-yellow-500 text-yellow-800",
+    success: "bg-emerald-100 border-emerald-500 text-emerald-900",
+    error: "bg-rose-100 border-rose-500 text-rose-900",
+    info: "bg-blue-100 border-blue-500 text-blue-900",
+    warning: "bg-amber-100 border-amber-500 text-amber-900",
   };
+
   const icon = {
     success: "✅",
-    error: "⚠️",
+    error: "⛔",
     info: "ℹ️",
     warning: "⚠️",
   };
 
+  const title = {
+    success: "LISTO",
+    error: "ERROR",
+    warning: "ATENCIÓN",
+    info: "INFO",
+  };
+
   return (
     <div
-      className={`fixed top-24 right-6 z-[9999] flex items-center gap-3 px-4 py-3 rounded shadow-xl border-l-4 ${
+      className={`fixed top-24 right-6 z-[9999] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl border-l-4 backdrop-blur-md ${
         colors[notification.type] || colors.info
-      } min-w-[300px] animate-fade-in-up`}
+      } min-w-[320px] animate-fade-in-up`}
     >
-      <span className="text-xl">{icon[notification.type] || "ℹ️"}</span>
+      <span className="text-2xl">{icon[notification.type] || "ℹ️"}</span>
       <div className="flex-1">
-        <p className="font-bold text-xs uppercase">
-          {notification.type === "success"
-            ? "LISTO"
-            : notification.type === "error"
-            ? "ERROR"
-            : notification.type === "warning"
-            ? "ATENCIÓN"
-            : "INFO"}
+        <p className="font-black text-[10px] uppercase tracking-[0.25em]">
+          {title[notification.type] || "INFO"}
         </p>
-        <p className="text-sm">{notification.message}</p>
+        <p className="text-sm font-semibold">{notification.message}</p>
       </div>
-      <button onClick={onClose} className="text-gray-500 font-bold hover:text-black">
+      <button onClick={onClose} className="text-slate-500 font-black hover:text-black">
         ×
       </button>
     </div>
@@ -48,6 +51,7 @@ export default function Transporte() {
   const [viajes, setViajes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
   const [notification, setNotification] = useState({
     visible: false,
     message: "",
@@ -59,7 +63,11 @@ export default function Transporte() {
 
   // --- FILTROS ---
   const [filtroHora, setFiltroHora] = useState("");
-  const [filtroDestino, setFiltroDestino] = useState(""); // ahora también filtra por patente
+  const [filtroDestino, setFiltroDestino] = useState(""); // filtra local/nodo/patente
+
+  // ✅ NUEVO: filtro por KPI (estado)
+  // ALL | ESPERANDO | EN_SALA | ABIERTO | EN_RUTA
+  const [estadoFiltro, setEstadoFiltro] = useState("ALL");
 
   // ✅ bloqueo de carga por día (si ya hay data)
   const [diaBloqueado, setDiaBloqueado] = useState(false);
@@ -131,7 +139,7 @@ export default function Transporte() {
     }
   };
 
-  // ✅ NUEVO: ALERTA MASIVA (a todos los choferes del día seleccionado)
+  // ✅ ALERTA MASIVA
   const enviarMensajeMasivo = async () => {
     const mensaje = prompt(
       `ALERTA MASIVA (${fechaFiltro})\n\nEscribe el mensaje que le llegará a TODOS los choferes del día:`
@@ -145,7 +153,6 @@ export default function Transporte() {
 
     setLoading(true);
     try {
-      // 🔥 Esto fuerza UPDATE en todas las filas del día => Realtime lo envía a cada chofer
       const { data, error } = await supabase
         .from("asignaciones_transporte")
         .update({ mensaje_admin: mensaje.trim() })
@@ -178,6 +185,7 @@ export default function Transporte() {
       setViajes([]);
       setFiltroHora("");
       setFiltroDestino("");
+      setEstadoFiltro("ALL");
       setDiaBloqueado(false);
       showToast("Datos del día eliminados. Puedes cargar un Excel nuevo.", "success");
     } catch (err) {
@@ -234,10 +242,7 @@ export default function Transporte() {
 
           const local = (row["Ciudad"] || row["ciudad"] || "Sin Ciudad").toString();
           const nodo = (row["Nodo"] || row["nodo"] || "").toString();
-          const patente = (row["Patente"] || row["patente"] || "S/P")
-            .toString()
-            .trim()
-            .toUpperCase();
+          const patente = (row["Patente"] || row["patente"] || "S/P").toString().trim().toUpperCase();
 
           return {
             fecha: fechaFiltro,
@@ -264,6 +269,7 @@ export default function Transporte() {
 
         showToast(`¡Éxito! ${filasFinales.length} rutas cargadas.`, "success");
         setDiaBloqueado(true);
+        setEstadoFiltro("ALL");
         fetchViajes();
       } catch (error) {
         console.error(error);
@@ -283,26 +289,44 @@ export default function Transporte() {
     return [...new Set(horas)].sort();
   }, [viajes]);
 
-  // ✅ ahora filtroDestino busca por: local, nodo, patente
-  const viajesFiltrados = viajes.filter((v) => {
-    const matchHora = !filtroHora || (v.hora_citacion && v.hora_citacion === filtroHora);
-
+  // ✅ Base: aplica filtros Hora + Buscar (pero NO estado KPI)
+  const viajesBase = useMemo(() => {
     const q = (filtroDestino || "").toLowerCase().trim();
-    const matchDestino =
-      !q ||
-      (v.local && String(v.local).toLowerCase().includes(q)) ||
-      (v.nodo && String(v.nodo).toLowerCase().includes(q)) ||
-      (v.patente && String(v.patente).toLowerCase().includes(q)); // ✅ patente
 
-    return matchHora && matchDestino;
-  });
+    return viajes.filter((v) => {
+      const matchHora = !filtroHora || (v.hora_citacion && v.hora_citacion === filtroHora);
+
+      const matchDestino =
+        !q ||
+        (v.local && String(v.local).toLowerCase().includes(q)) ||
+        (v.nodo && String(v.nodo).toLowerCase().includes(q)) ||
+        (v.patente && String(v.patente).toLowerCase().includes(q));
+
+      return matchHora && matchDestino;
+    });
+  }, [viajes, filtroHora, filtroDestino]);
+
+  // ✅ Estado de cada fila (misma lógica que tenías)
+  const getStatusKey = (v) => {
+    if (v.hora_fin_reparto) return "EN_RUTA";
+    if (v.hora_salida) return "ABIERTO";
+    if (v.hora_llegada) return "EN_SALA";
+    return "ESPERANDO";
+  };
 
   const getStatus = (v) => {
-    if (v.hora_fin_reparto) return { label: "EN RUTA", color: "bg-green-600 text-white" };
-    if (v.hora_salida) return { label: "ABIERTO", color: "bg-blue-600 text-white" };
-    if (v.hora_llegada) return { label: "EN SALA", color: "bg-yellow-400 text-black" };
-    return { label: "ESPERANDO", color: "bg-gray-200 text-gray-500" };
+    const key = getStatusKey(v);
+    if (key === "EN_RUTA") return { label: "EN RUTA", color: "bg-emerald-600 text-white" };
+    if (key === "ABIERTO") return { label: "ABIERTO", color: "bg-blue-600 text-white" };
+    if (key === "EN_SALA") return { label: "EN SALA", color: "bg-amber-300 text-slate-900" };
+    return { label: "ESPERANDO", color: "bg-slate-100 text-slate-600" };
   };
+
+  // ✅ Tabla final: Base + KPI estado
+  const viajesFiltrados = useMemo(() => {
+    if (estadoFiltro === "ALL") return viajesBase;
+    return viajesBase.filter((v) => getStatusKey(v) === estadoFiltro);
+  }, [viajesBase, estadoFiltro]);
 
   const formatTime = (isoString) => {
     if (!isoString) return "-";
@@ -318,292 +342,374 @@ export default function Transporte() {
     }
   };
 
-  const totalRutas = viajesFiltrados.length;
-  const esperando = viajesFiltrados.filter((v) => !v.hora_llegada && !v.hora_salida && !v.hora_fin_reparto).length;
-  const enSala = viajesFiltrados.filter((v) => v.hora_llegada && !v.hora_salida && !v.hora_fin_reparto).length;
-  const abierto = viajesFiltrados.filter((v) => v.hora_salida && !v.hora_fin_reparto).length;
-  const enRuta = viajesFiltrados.filter((v) => v.hora_fin_reparto).length;
+  // ✅ KPI se calculan sobre viajesBase (para que reflejen el contexto de filtros hora/búsqueda)
+  const totalRutas = viajesBase.length;
+  const esperando = viajesBase.filter((v) => getStatusKey(v) === "ESPERANDO").length;
+  const enSala = viajesBase.filter((v) => getStatusKey(v) === "EN_SALA").length;
+  const abierto = viajesBase.filter((v) => getStatusKey(v) === "ABIERTO").length;
+  const enRuta = viajesBase.filter((v) => getStatusKey(v) === "EN_RUTA").length;
 
   const uploadDisabled = loading || diaBloqueado;
 
+  // ✅ handler KPI
+  const toggleEstado = (key) => {
+    setEstadoFiltro((prev) => (prev === key ? "ALL" : key));
+  };
+
   return (
-    <div className="bg-gray-100 min-h-screen p-6 font-sans">
-      <ToastNotification
-        notification={notification}
-        onClose={() => setNotification({ ...notification, visible: false })}
-      />
-
-      {/* HEADER */}
-      <div className="bg-[#1e3c72] text-white p-4 rounded-t-xl flex flex-col md:flex-row justify-between items-center shadow-lg border-b-4 border-[#d63384] mb-4 gap-4">
-        <h1 className="text-2xl font-black tracking-tighter flex items-center gap-2">
-          TORRE DE CONTROL CATEX
-        </h1>
-
-        <div className="flex flex-wrap gap-3 items-center justify-center md:justify-end">
-          <select
-            value={filtroHora}
-            onChange={(e) => setFiltroHora(e.target.value)}
-            className="text-[#1e3c72] text-xs font-bold p-2.5 rounded cursor-pointer border-2 border-transparent focus:border-[#d63384] outline-none shadow-md bg-white"
-          >
-            <option value="">🕒 TODAS LAS HORAS</option>
-            {horasDisponibles.map((h) => (
-              <option key={h} value={h}>
-                {h} hrs
-              </option>
-            ))}
-          </select>
-
-          <input
-            type="text"
-            placeholder="🔎 Buscar destino / nodo / patente..."
-            value={filtroDestino}
-            onChange={(e) => setFiltroDestino(e.target.value)}
-            className="text-[#1e3c72] text-xs font-bold p-2.5 rounded w-56 shadow-md border-none outline-none focus:ring-2 focus:ring-[#d63384]"
-          />
-
-          <input
-            type="date"
-            value={fechaFiltro}
-            onChange={(e) => setFechaFiltro(e.target.value)}
-            className="text-[#1e3c72] font-bold p-2 rounded cursor-pointer shadow-md text-sm"
-          />
-        </div>
+    <div className="relative min-h-screen p-6 font-sans">
+      {/* Fondo enterprise */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-50" />
+        <div className="absolute top-[-18%] right-[-14%] w-[620px] h-[620px] bg-slate-200/45 rounded-full blur-3xl" />
+        <div className="absolute bottom-[-18%] left-[-14%] w-[640px] h-[640px] bg-slate-200/35 rounded-full blur-3xl" />
       </div>
 
-      {/* MÉTRICAS */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <div className="bg-white rounded-lg p-3 shadow border-l-4 border-[#1e3c72]">
-          <div className="text-[10px] font-bold text-gray-500 uppercase">Rutas</div>
-          <div className="text-2xl font-black text-[#1e3c72]">{totalRutas}</div>
-        </div>
-        <div className="bg-white rounded-lg p-3 shadow border-l-4 border-gray-300">
-          <div className="text-[10px] font-bold text-gray-500 uppercase">Pendiente de llegada</div>
-          <div className="text-2xl font-black text-gray-700">{esperando}</div>
-        </div>
-        <div className="bg-white rounded-lg p-3 shadow border-l-4 border-yellow-400">
-          <div className="text-[10px] font-bold text-gray-500 uppercase">En sala</div>
-          <div className="text-2xl font-black text-gray-700">{enSala}</div>
-        </div>
-        <div className="bg-white rounded-lg p-3 shadow border-l-4 border-blue-600">
-          <div className="text-[10px] font-bold text-gray-500 uppercase">Abierto</div>
-          <div className="text-2xl font-black text-gray-700">{abierto}</div>
-        </div>
-        <div className="bg-white rounded-lg p-3 shadow border-l-4 border-green-600">
-          <div className="text-[10px] font-bold text-gray-500 uppercase">En ruta</div>
-          <div className="text-2xl font-black text-gray-700">{enRuta}</div>
-        </div>
-      </div>
+      <ToastNotification notification={notification} onClose={() => setNotification({ ...notification, visible: false })} />
 
-      {/* CARGA / MENSAJES */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6 flex flex-col gap-3 border-l-4 border-[#1e3c72]">
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div>
-            <h3 className="font-bold text-[#1e3c72] text-lg">PLANIFICACIÓN DE VIAJES</h3>
-            <p className="text-xs text-gray-500">
-              Carga <b>1 Excel por día</b>. Para volver a cargar, usa <b>Limpiar día</b> o cambia la fecha.
-            </p>
-          </div>
+      {/* CONTENEDOR PRINCIPAL */}
+      <div className="max-w-[1400px] mx-auto rounded-2xl border border-slate-200 shadow-xl overflow-hidden bg-white/70 backdrop-blur">
+        {/* HEADER ENTERPRISE */}
+        <div className="bg-gradient-to-r from-[#0b1f44] via-[#14345f] to-[#0b1f44] text-white px-6 py-5 border-b-4 border-[#d63384]">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/60">Control Center</p>
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight">
+                TORRE DE CONTROL <span className="text-[#d63384]">CATEX</span>
+              </h1>
+              <p className="text-xs text-white/70 mt-1">Planificación, monitoreo operativo y mensajería.</p>
+            </div>
 
-          <div className="flex flex-wrap gap-3 items-center justify-center">
-            {/* ✅ NUEVO BOTÓN ALERTA MASIVA */}
-            <button
-              onClick={enviarMensajeMasivo}
-              disabled={loading || viajes.length === 0}
-              className={`bg-yellow-400 hover:bg-yellow-500 text-black font-black py-2.5 px-4 rounded text-sm border border-yellow-300 shadow transition-all active:scale-95 ${
-                loading || viajes.length === 0 ? "opacity-50 pointer-events-none" : ""
-              }`}
-              title="Envía un mensaje a TODOS los choferes del día seleccionado"
-            >
-              📣 ALERTA MASIVA
-            </button>
-
-            <button
-              onClick={limpiarDia}
-              disabled={loading}
-              className={`bg-red-50 hover:bg-red-100 text-red-700 font-black py-2.5 px-4 rounded text-sm border border-red-200 shadow transition-all active:scale-95 ${
-                loading ? "opacity-50 pointer-events-none" : ""
-              }`}
-              title="Borra todas las rutas del día seleccionado"
-            >
-              🧹 LIMPIAR DÍA
-            </button>
-
-            <label
-              className={`cursor-pointer bg-[#d63384] hover:bg-pink-600 text-white font-bold py-2.5 px-6 rounded text-sm shadow transition-all active:scale-95 flex items-center gap-2 ${
-                uploadDisabled ? "opacity-50 pointer-events-none" : ""
-              }`}
-              title={
-                diaBloqueado
-                  ? "Este día ya tiene datos. Limpia el día o cambia la fecha para cargar otro Excel."
-                  : "Cargar Excel"
-              }
-            >
-              {loading ? (
-                <>
-                  <span className="animate-spin">↻</span> PROCESANDO...
-                </>
-              ) : diaBloqueado ? (
-                <>🔒 EXCEL BLOQUEADO</>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                    />
-                  </svg>{" "}
-                  CARGAR EXCEL
-                </>
-              )}
+            {/* Controles */}
+            <div className="flex flex-wrap gap-3 items-center">
+              <select
+                value={filtroHora}
+                onChange={(e) => setFiltroHora(e.target.value)}
+                className="text-[#0b1f44] text-xs font-black p-3 rounded-xl cursor-pointer border border-white/10 outline-none shadow bg-white"
+              >
+                <option value="">🕒 TODAS LAS HORAS</option>
+                {horasDisponibles.map((h) => (
+                  <option key={h} value={h}>
+                    {h} hrs
+                  </option>
+                ))}
+              </select>
 
               <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx, .xls"
-                onChange={handleFileUpload}
-                className="hidden"
-                disabled={uploadDisabled}
+                type="text"
+                placeholder="🔎 Buscar destino / nodo / patente..."
+                value={filtroDestino}
+                onChange={(e) => setFiltroDestino(e.target.value)}
+                className="text-[#0b1f44] text-xs font-black p-3 rounded-xl w-64 shadow bg-white outline-none focus:ring-2 focus:ring-[#d63384]"
               />
-            </label>
+
+              <input
+                type="date"
+                value={fechaFiltro}
+                onChange={(e) => setFechaFiltro(e.target.value)}
+                className="text-[#0b1f44] font-black p-3 rounded-xl cursor-pointer shadow bg-white text-sm"
+              />
+
+              <button
+                onClick={fetchViajes}
+                className={`rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest shadow border border-white/10 bg-white/10 hover:bg-white/15 transition flex items-center gap-2 ${
+                  refreshing ? "opacity-70" : ""
+                }`}
+                title="Actualizar"
+              >
+                <span className={refreshing ? "animate-spin" : ""}>↻</span>
+                Actualizar
+              </button>
+            </div>
           </div>
         </div>
 
-        {diaBloqueado && (
-          <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-            🔒 Ya hay rutas cargadas para <b>{fechaFiltro}</b>. Para cargar otro Excel:{" "}
-            <b>Limpiar día</b> o <b>cambiar fecha</b>.
+        {/* KPI / MÉTRICAS (AHORA FUNCIONALES) */}
+        <div className="px-6 py-5 bg-white border-b">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <KpiCard
+              label="Rutas"
+              value={totalRutas}
+              accent="border-[#14345f]"
+              active={estadoFiltro === "ALL"}
+              onClick={() => setEstadoFiltro("ALL")}
+            />
+            <KpiCard
+              label="Pendiente"
+              value={esperando}
+              accent="border-slate-300"
+              active={estadoFiltro === "ESPERANDO"}
+              onClick={() => toggleEstado("ESPERANDO")}
+            />
+            <KpiCard
+              label="En sala"
+              value={enSala}
+              accent="border-amber-400"
+              active={estadoFiltro === "EN_SALA"}
+              onClick={() => toggleEstado("EN_SALA")}
+            />
+            <KpiCard
+              label="Abierto"
+              value={abierto}
+              accent="border-blue-600"
+              active={estadoFiltro === "ABIERTO"}
+              onClick={() => toggleEstado("ABIERTO")}
+            />
+            <KpiCard
+              label="En ruta"
+              value={enRuta}
+              accent="border-emerald-600"
+              active={estadoFiltro === "EN_RUTA"}
+              onClick={() => toggleEstado("EN_RUTA")}
+            />
           </div>
-        )}
-      </div>
 
-      {/* TABLA */}
-      <div className="bg-white rounded-lg shadow overflow-hidden border-t-4 border-[#1e3c72]">
-        <div className="p-3 bg-gray-50 flex justify-between items-center border-b">
-          <div className="flex items-center gap-2">
-            <h6 className="font-black text-[#1e3c72] uppercase text-sm">VISTA OPERATIVA</h6>
-            <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-              {viajesFiltrados.length} RUTAS
+          {/* mini etiqueta del filtro activo */}
+          <div className="mt-3 text-[11px] text-slate-600 font-semibold">
+            Filtro Estado:{" "}
+            <span className="font-black text-slate-900">
+              {estadoFiltro === "ALL"
+                ? "TODOS"
+                : estadoFiltro === "ESPERANDO"
+                ? "ESPERANDO"
+                : estadoFiltro === "EN_SALA"
+                ? "EN SALA"
+                : estadoFiltro === "ABIERTO"
+                ? "ABIERTO"
+                : "EN RUTA"}
             </span>
+            {estadoFiltro !== "ALL" && (
+              <button
+                onClick={() => setEstadoFiltro("ALL")}
+                className="ml-3 text-[10px] font-black uppercase tracking-widest text-blue-700 hover:underline"
+              >
+                limpiar filtro
+              </button>
+            )}
           </div>
-          <button
-            onClick={fetchViajes}
-            className={`text-blue-600 font-bold p-2 hover:bg-blue-50 rounded-full transition-all ${
-              refreshing ? "animate-spin" : "hover:rotate-180"
-            }`}
-            title="Actualizar Tabla"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-[#1e3c72] text-white uppercase font-bold text-xs">
-              <tr>
-                <th className="p-3 whitespace-nowrap">Patente</th>
-                <th className="p-3 whitespace-nowrap">Citación</th>
-                <th className="p-3 min-w-[200px]">Destino / Nodo</th>
-                <th className="p-3 text-center whitespace-nowrap">Vuelta</th>
-                <th className="p-3 text-center bg-yellow-50/10 whitespace-nowrap">Llegada (Sala)</th>
-                <th className="p-3 text-center bg-blue-50/10 whitespace-nowrap">Apertura</th>
-                <th className="p-3 text-center bg-green-50/10 whitespace-nowrap">Inicio Ruta</th>
-                <th className="p-3 text-center whitespace-nowrap">Estado</th>
-                <th className="p-3 text-center whitespace-nowrap">Acción</th>
-              </tr>
-            </thead>
+        {/* PLANIFICACIÓN */}
+        <div className="px-6 py-5 bg-white border-b">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 flex flex-col gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Planificación</p>
+                <h3 className="font-black text-[#14345f] text-lg">CARGA DE RUTAS (1 Excel por día)</h3>
+                <p className="text-xs text-slate-600 mt-1">
+                  Para volver a cargar, usa <b>Limpiar día</b> o cambia la fecha.
+                </p>
+              </div>
 
-            <tbody className="divide-y divide-gray-100">
-              {viajesFiltrados.length === 0 ? (
+              <div className="flex flex-wrap gap-3 items-center">
+                <button
+                  onClick={enviarMensajeMasivo}
+                  disabled={loading || viajes.length === 0}
+                  className={`rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest shadow border transition active:scale-95
+                    ${
+                      loading || viajes.length === 0
+                        ? "opacity-50 pointer-events-none bg-amber-100 text-amber-900 border-amber-200"
+                        : "bg-amber-400 hover:bg-amber-500 text-slate-900 border-amber-300"
+                    }`}
+                  title="Envía un mensaje a TODOS los choferes del día seleccionado"
+                >
+                  📣 Alerta masiva
+                </button>
+
+                <button
+                  onClick={limpiarDia}
+                  disabled={loading}
+                  className={`rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest shadow border transition active:scale-95
+                    ${
+                      loading
+                        ? "opacity-50 pointer-events-none bg-rose-50 text-rose-800 border-rose-200"
+                        : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
+                    }`}
+                  title="Borra todas las rutas del día seleccionado"
+                >
+                  🧹 Limpiar día
+                </button>
+
+                <label
+                  className={`rounded-xl px-5 py-3 text-xs font-black uppercase tracking-widest shadow transition active:scale-95 flex items-center gap-2 cursor-pointer border
+                    ${
+                      uploadDisabled
+                        ? "opacity-50 pointer-events-none bg-slate-200 text-slate-600 border-slate-300"
+                        : "bg-[#d63384] hover:bg-pink-600 text-white border-pink-300/40"
+                    }`}
+                  title={
+                    diaBloqueado
+                      ? "Este día ya tiene datos. Limpia el día o cambia la fecha para cargar otro Excel."
+                      : "Cargar Excel"
+                  }
+                >
+                  {loading ? (
+                    <>
+                      <span className="animate-spin">↻</span> Procesando...
+                    </>
+                  ) : diaBloqueado ? (
+                    <>🔒 Excel bloqueado</>
+                  ) : (
+                    <>⬆️ Cargar Excel</>
+                  )}
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    disabled={uploadDisabled}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {diaBloqueado && (
+              <div className="text-[12px] text-amber-900 bg-amber-100/60 border border-amber-200 rounded-xl px-4 py-3">
+                🔒 Ya hay rutas cargadas para <b>{fechaFiltro}</b>. Para cargar otro Excel:{" "}
+                <b>Limpiar día</b> o <b>cambiar fecha</b>.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* TABLA */}
+        <div className="bg-white">
+          <div className="px-6 py-4 bg-slate-50 border-b flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <h6 className="font-black text-[#14345f] uppercase text-sm tracking-widest">Vista operativa</h6>
+              <span className="bg-blue-100 text-blue-900 text-[10px] font-black px-2 py-1 rounded-full border border-blue-200">
+                {viajesFiltrados.length} rutas
+              </span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-[#0b1f44] text-white uppercase font-black text-[11px] tracking-widest">
                 <tr>
-                  <td colSpan="9" className="p-12 text-center text-gray-400">
-                    <p className="font-bold text-lg">No hay rutas coincidentes</p>
-                    <p className="text-xs mt-1">Prueba cambiando filtros o carga un Excel para el día seleccionado.</p>
-                  </td>
+                  <th className="p-4 whitespace-nowrap">Patente</th>
+                  <th className="p-4 whitespace-nowrap">Citación</th>
+                  <th className="p-4 min-w-[240px]">Destino / Nodo</th>
+                  <th className="p-4 text-center whitespace-nowrap">Vuelta</th>
+                  <th className="p-4 text-center whitespace-nowrap">Llegada (Sala)</th>
+                  <th className="p-4 text-center whitespace-nowrap">Apertura</th>
+                  <th className="p-4 text-center whitespace-nowrap">Inicio Ruta</th>
+                  <th className="p-4 text-center whitespace-nowrap">Estado</th>
+                  <th className="p-4 text-center whitespace-nowrap">Acción</th>
                 </tr>
-              ) : (
-                viajesFiltrados.map((viaje) => {
-                  const st = getStatus(viaje);
-                  return (
-                    <tr key={viaje.id} className="hover:bg-blue-50 transition-colors group">
-                      <td className="p-3 font-black text-[#1e3c72] text-lg">{viaje.patente}</td>
+              </thead>
 
-                      <td className="p-3">
-                        <span className="bg-gray-100 text-gray-700 font-mono font-bold px-2 py-1 rounded border border-gray-200">
-                          {viaje.hora_citacion}
-                        </span>
-                      </td>
+              <tbody className="divide-y divide-slate-100">
+                {viajesFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" className="p-12 text-center text-slate-400">
+                      <p className="font-black text-lg">No hay rutas coincidentes</p>
+                      <p className="text-xs mt-1">
+                        Prueba cambiando filtros o carga un Excel para el día seleccionado.
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  viajesFiltrados.map((viaje) => {
+                    const st = getStatus(viaje);
+                    return (
+                      <tr key={viaje.id} className="hover:bg-blue-50/50 transition-colors">
+                        <td className="p-4">
+                          <div className="font-black text-[#14345f] text-lg leading-none">{viaje.patente}</div>
+                        </td>
 
-                      <td className="p-3">
-                        <div className="font-bold text-gray-800 leading-tight">{viaje.local}</div>
-                        <div className="text-[10px] text-gray-500 font-bold uppercase mt-0.5">
-                          Nodo: {viaje.nodo}
-                        </div>
-                      </td>
+                        <td className="p-4">
+                          <span className="inline-flex items-center bg-slate-100 text-slate-800 font-mono font-black px-3 py-1 rounded-xl border border-slate-200">
+                            {viaje.hora_citacion}
+                          </span>
+                        </td>
 
-                      <td className="p-3 text-center">
-                        <span className="bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold">
-                          #{viaje.numero_vuelta}
-                        </span>
-                      </td>
-
-                      <td className="p-3 text-center font-mono text-gray-600">
-                        {viaje.hora_llegada ? (
-                          <div className="flex flex-col items-center">
-                            <span className="font-bold text-black">{formatTime(viaje.hora_llegada)}</span>
-                            {viaje.gps_llegada_lat && viaje.gps_llegada_lon && (
-                              <a
-                                href={`https://www.google.com/maps?q=${viaje.gps_llegada_lat},${viaje.gps_llegada_lon}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center gap-1 text-[9px] text-blue-600 font-bold hover:text-blue-800 hover:underline mt-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-100"
-                              >
-                                📍 MAPA
-                              </a>
-                            )}
+                        <td className="p-4">
+                          <div className="font-bold text-slate-900 leading-tight">{viaje.local}</div>
+                          <div className="text-[10px] text-slate-500 font-black uppercase mt-1 tracking-widest">
+                            Nodo: {viaje.nodo}
                           </div>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
-                      </td>
+                        </td>
 
-                      <td className="p-3 text-center font-mono text-blue-600 font-bold">{formatTime(viaje.hora_salida)}</td>
+                        <td className="p-4 text-center">
+                          <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-xl text-xs font-black border border-slate-200">
+                            #{viaje.numero_vuelta}
+                          </span>
+                        </td>
 
-                      <td className="p-3 text-center font-mono text-green-600 font-bold">
-                        {formatTime(viaje.hora_fin_reparto)}
-                      </td>
+                        <td className="p-4 text-center font-mono text-slate-700">
+                          {viaje.hora_llegada ? (
+                            <div className="flex flex-col items-center">
+                              <span className="font-black text-slate-900">{formatTime(viaje.hora_llegada)}</span>
+                              {viaje.gps_llegada_lat && viaje.gps_llegada_lon && (
+                                <a
+                                  href={`https://www.google.com/maps?q=${viaje.gps_llegada_lat},${viaje.gps_llegada_lon}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-2 inline-flex items-center gap-1 text-[10px] text-blue-700 font-black hover:underline bg-blue-50 px-3 py-1 rounded-full border border-blue-200"
+                                >
+                                  📍 Ver mapa
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
 
-                      <td className="p-3 text-center">
-                        <div className={`px-2 py-1 rounded text-[10px] font-black inline-block shadow-sm ${st.color}`}>
-                          {st.label}
-                        </div>
-                      </td>
+                        <td className="p-4 text-center font-mono text-blue-700 font-black">{formatTime(viaje.hora_salida)}</td>
 
-                      <td className="p-3 text-center">
-                        <button
-                          onClick={() => enviarMensaje(viaje.id, viaje.patente)}
-                          className="bg-white text-orange-500 hover:bg-orange-50 hover:text-orange-600 px-3 py-1.5 rounded text-xs font-bold border border-orange-200 transition-colors flex items-center justify-center gap-1 mx-auto shadow-sm"
-                          title="Enviar mensaje al conductor"
-                        >
-                          📩 <span className="hidden xl:inline">AVISAR</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                        <td className="p-4 text-center font-mono text-emerald-700 font-black">{formatTime(viaje.hora_fin_reparto)}</td>
+
+                        <td className="p-4 text-center">
+                          <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black shadow-sm ${st.color}`}>
+                            {st.label}
+                          </span>
+                        </td>
+
+                        <td className="p-4 text-center">
+                          <button
+                            onClick={() => enviarMensaje(viaje.id, viaje.patente)}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest border border-orange-200 bg-white hover:bg-orange-50 text-orange-600 hover:text-orange-700 shadow-sm transition active:scale-95"
+                            title="Enviar mensaje al conductor"
+                          >
+                            📩 Avisar
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+// ✅ KPI card enterprise (AHORA BOTÓN FUNCIONAL)
+function KpiCard({ label, value, accent, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-l-4 ${accent}
+        transition-all duration-150 cursor-pointer select-none
+        hover:shadow-md hover:-translate-y-[1px]
+        active:translate-y-0 active:shadow-sm
+        ${active ? "ring-2 ring-[#d63384] shadow-md" : ""}
+      `}
+      title={`Filtrar por: ${label}`}
+    >
+      <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em]">{label}</div>
+      <div className="text-3xl font-black text-slate-900 mt-1">{value}</div>
+      <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+        {active ? "Activo (click para quitar)" : "Click para filtrar"}
+      </div>
+    </button>
   );
 }

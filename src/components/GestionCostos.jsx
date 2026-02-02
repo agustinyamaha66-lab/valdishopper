@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-
+import {
+  DollarSign,
+  Receipt,
+  Calendar,
+  MapPin,
+  Hash,
+  FileText,
+  Save,
+  AlertCircle,
+  CheckCircle2,
+  CreditCard
+} from 'lucide-react'
 
 // --- DATOS MAESTROS ---
 const localesPorServicio = {
@@ -13,7 +24,6 @@ const localesPorServicio = {
   CATEX: ["33 Kennedy", "71 La Florida", "75 Maipú", "76 La Reina", "78 Puente Alto", "81 Peñalolén", "88 Tobalaba", "92 La Dehesa"]
 }
 
-// Estado Inicial
 const initialState = {
   modalidad: 'PAGO',
   servicio: '',
@@ -29,12 +39,12 @@ const initialState = {
   comentario: ''
 }
 
+// Helpers
 const formatCLP = (value) => {
   if (!value) return '';
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value);
 }
 
-// --- UTILIDADES ---
 const formatearRut = (rut) => {
   const actual = rut.replace(/^0+/, "").replace(/[^0-9kK]+/g, "").toUpperCase();
   if (actual === '') return '';
@@ -54,6 +64,23 @@ const validarRutChileno = (rut) => {
   return dvEsperado == dv;
 }
 
+// Badge Concepto
+const ConceptoBadge = ({ tipo }) => {
+    const styles = {
+        'AMBULANCIA': 'bg-red-50 text-red-700 border-red-200',
+        'DOBLE RUTA': 'bg-blue-50 text-blue-700 border-blue-200',
+        'FALSO FLETE': 'bg-orange-50 text-orange-700 border-orange-200',
+        'INCENTIVO': 'bg-green-50 text-green-700 border-green-200',
+        'OTRO': 'bg-gray-50 text-gray-700 border-gray-200',
+        'SOLO COBRO': 'bg-purple-50 text-purple-700 border-purple-200'
+    }
+    return (
+        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${styles[tipo] || styles['OTRO']} uppercase tracking-wide`}>
+            {tipo}
+        </span>
+    )
+}
+
 export default function GestionCostos() {
   const [loading, setLoading] = useState(false)
   const [registros, setRegistros] = useState([])
@@ -62,21 +89,27 @@ export default function GestionCostos() {
     fecha: new Date().toISOString().split('T')[0]
   })
 
+  // Toast simple state
+  const [toast, setToast] = useState({ show: false, msg: '', type: 'success' });
+
   useEffect(() => { fetchRegistros() }, [])
 
+  const showToast = (msg, type = 'success') => {
+      setToast({ show: true, msg, type });
+      setTimeout(() => setToast({ show: false, msg: '', type: 'success' }), 3000);
+  }
+
   const fetchRegistros = async () => {
-    // Solo traemos los últimos 20 para mostrar en la tabla de ingreso rápido
     const { data } = await supabase.from('costos_extra').select('*').order('created_at', { ascending: false }).limit(20)
     if (data) setRegistros(data)
   }
 
-  // --- LÓGICA DE FORMULARIO ---
   const esFalsoFleteHD = () => (formData.servicio === 'HD' || formData.servicio === 'ESTIVALES') && formData.tipo === 'FALSO FLETE';
 
   const handleMontoChange = (e) => {
     const { name, value } = e.target
     const soloNumeros = value.replace(/\D/g, '')
-    if (soloNumeros.length > 7) return;
+    if (soloNumeros.length > 9) return;
     setFormData({ ...formData, [name]: soloNumeros })
   }
 
@@ -104,19 +137,19 @@ export default function GestionCostos() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.local) return alert("Selecciona una Sala/Local")
-    if (formData.modalidad === 'PAGO' && !formData.tipo) return alert("Debes seleccionar un CONCEPTO");
+    if (!formData.local) return showToast("Selecciona una Sala/Local", "error");
+    if (formData.modalidad === 'PAGO' && !formData.tipo) return showToast("Debes seleccionar un CONCEPTO", "error");
 
     if (formData.modalidad === 'PAGO') {
         if (formData.tipoDocumento === 'PATENTE') {
             const regexPatente = /^([A-Z]{4}\d{2}|[A-Z]{2}\d{4})$/;
-            if (!regexPatente.test(formData.patente)) return alert("⛔ ERROR EN PATENTE:\nFormatos: ABCD12 o AB1234");
+            if (!regexPatente.test(formData.patente)) return showToast("FORMATO PATENTE INVÁLIDO (Ej: ABCD12)", "error");
         } else {
             const rutLimpio = formData.patente.replace(/\./g, '').toUpperCase();
-            if (!validarRutChileno(rutLimpio)) return alert("⛔ ERROR EN RUT");
+            if (!validarRutChileno(rutLimpio)) return showToast("RUT INVÁLIDO", "error");
             setFormData(prev => ({...prev, patente: formatearRut(rutLimpio)}));
         }
-        if (!esFalsoFleteHD() && (!formData.montoPrestador || parseInt(formData.montoPrestador) <= 0)) return alert("⛔ FALTA EL MONTO");
+        if (!esFalsoFleteHD() && (!formData.montoPrestador || parseInt(formData.montoPrestador) <= 0)) return showToast("FALTA EL MONTO A PAGAR", "error");
     }
 
     setLoading(true)
@@ -140,9 +173,9 @@ export default function GestionCostos() {
 
     const { error } = await supabase.from('costos_extra').insert([payload]);
 
-    if (error) alert("Error: " + error.message)
+    if (error) showToast("Error: " + error.message, "error");
     else {
-      alert("Registro Guardado ✅")
+      showToast("Movimiento registrado correctamente", "success");
       fetchRegistros()
       setFormData({ ...initialState, fecha: new Date().toISOString().split('T')[0] })
     }
@@ -150,91 +183,224 @@ export default function GestionCostos() {
   }
 
   return (
-    <div className="bg-gray-100 min-h-screen p-6 font-sans">
-      <div className="bg-gradient-to-r from-black via-[#1e3c72] to-[#1e3c72] text-white p-4 rounded-xl flex justify-between items-center shadow-lg border-b-4 border-[#d63384] mb-6">
-        <div><h1 className="text-2xl font-black tracking-tight">REGISTRO OPERACIONAL</h1><p className="text-xs text-[#d63384] font-bold tracking-widest uppercase">Ingreso de Costos</p></div>
+    <div className="min-h-screen bg-slate-50/50 p-6 md:p-8 font-sans animate-fade-in relative">
+
+      {/* TOAST NOTIFICATION */}
+      {toast.show && (
+          <div className={`fixed top-24 right-6 z-50 px-6 py-4 rounded-xl shadow-2xl border-l-4 transform transition-all duration-300 animate-in slide-in-from-right flex items-center gap-3 ${toast.type === 'error' ? 'bg-red-50 border-red-500 text-red-800' : 'bg-emerald-50 border-emerald-500 text-emerald-800'}`}>
+              {toast.type === 'error' ? <AlertCircle size={24}/> : <CheckCircle2 size={24}/>}
+              <div>
+                  <p className="font-bold text-xs uppercase tracking-wider opacity-80">{toast.type === 'error' ? 'Error' : 'Éxito'}</p>
+                  <p className="font-semibold text-sm">{toast.msg}</p>
+              </div>
+          </div>
+      )}
+
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div>
+            <h1 className="text-3xl font-bold text-[#1e3c72] tracking-tight flex items-center gap-3">
+                <DollarSign className="text-[#d63384]" size={32} />
+                Gestión de Costos
+            </h1>
+            <p className="text-slate-500 mt-2 text-sm font-medium">Registro de pagos extraordinarios y cobros a clientes.</p>
+        </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 animate-fade-in">
-          {/* FORMULARIO */}
-          <div className="w-full lg:w-5/12">
-            <div className="bg-white rounded shadow-sm border-t-4 border-[#d63384] h-full">
-              <div className="p-4 border-b"><h6 className="text-[#1e3c72] font-bold flex items-center gap-2"> NUEVO MOVIMIENTO</h6></div>
-              <div className="p-5">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="flex rounded-md shadow-sm mb-4" role="group">
-                    <button type="button" onClick={() => setFormData({...formData, modalidad: 'PAGO'})} className={`flex-1 py-2 text-sm font-bold border ${formData.modalidad === 'PAGO' ? 'bg-[#1e3c72] text-white border-[#1e3c72]' : 'bg-white text-gray-700'}`}>PAGAR PRESTADOR</button>
-                    <button type="button" onClick={() => setFormData({...formData, modalidad: 'COBRO'})} className={`flex-1 py-2 text-sm font-bold border ${formData.modalidad === 'COBRO' ? 'bg-[#1e3c72] text-white border-[#1e3c72]' : 'bg-white text-gray-700'}`}>SOLO COBRO CLIENTE</button>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+          {/* --- FORMULARIO (COLUMNA IZQUIERDA) --- */}
+          <div className="lg:col-span-5">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden sticky top-6">
+
+              <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
+                 <h2 className="text-[#1e3c72] font-bold text-sm uppercase tracking-wide flex items-center gap-2">
+                    <CreditCard size={16} /> Nuevo Movimiento
+                 </h2>
+              </div>
+
+              <div className="p-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
+
+                  {/* Selector de Modalidad (Segmented Control) */}
+                  <div className="bg-slate-100 p-1 rounded-xl flex font-bold text-sm">
+                    <button
+                        type="button"
+                        onClick={() => setFormData({...formData, modalidad: 'PAGO'})}
+                        className={`flex-1 py-2.5 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${formData.modalidad === 'PAGO' ? 'bg-white text-[#1e3c72] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        <DollarSign size={16}/> Pagar Prestador
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setFormData({...formData, modalidad: 'COBRO'})}
+                        className={`flex-1 py-2.5 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${formData.modalidad === 'COBRO' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        <Receipt size={16}/> Solo Cobro
+                    </button>
                   </div>
 
-                  <div><label className="text-xs font-bold text-gray-500">FECHA EVENTO</label><input type="date" name="fecha" value={formData.fecha} onChange={handleChange} className="w-full border p-2 rounded" /></div>
+                  {/* Datos Básicos */}
+                  <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Fecha Evento</label>
+                        <div className="relative">
+                            <input type="date" name="fecha" value={formData.fecha} onChange={handleChange} className="w-full border border-slate-200 p-2.5 rounded-lg text-sm font-medium focus:ring-2 focus:ring-[#1e3c72] outline-none" />
+                            <Calendar className="absolute right-3 top-2.5 text-slate-400 pointer-events-none" size={16} />
+                        </div>
+                     </div>
+                     <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Servicio</label>
+                        <select name="servicio" value={formData.servicio} onChange={handleChange} className="w-full border border-slate-200 p-2.5 rounded-lg text-sm font-bold text-[#1e3c72] focus:ring-2 focus:ring-[#1e3c72] outline-none" required>
+                            <option value="">Sel...</option>
+                            {Object.keys(localesPorServicio).map(svc => (<option key={svc} value={svc}>{svc}</option>))}
+                        </select>
+                     </div>
+                  </div>
 
-                  <div className="flex gap-2">
-                    <div className="w-1/2">
-                      <label className="text-xs font-bold text-gray-500">SERVICIO</label>
-                      <select name="servicio" value={formData.servicio} onChange={handleChange} className="w-full border p-2 rounded" required><option value="">SEL...</option>{Object.keys(localesPorServicio).map(svc => (<option key={svc} value={svc}>{svc}</option>))}</select>
-                    </div>
-                    <div className="w-1/2">
-                      <label className="text-xs font-bold text-gray-500">SALA / LOCAL</label>
-                      <select name="local" value={formData.local} onChange={handleChange} className="w-full border p-2 rounded" disabled={!formData.servicio} required><option value="">{formData.servicio ? 'Seleccione...' : '← Elija Servicio'}</option>{formData.servicio && localesPorServicio[formData.servicio]?.map((l, i) => (<option key={i} value={l}>{l}</option>))}</select>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Local / Sala</label>
+                    <div className="relative">
+                        <MapPin className="absolute left-3 top-3 text-slate-400" size={16} />
+                        <select name="local" value={formData.local} onChange={handleChange} className="w-full border border-slate-200 p-2.5 pl-9 rounded-lg text-sm focus:ring-2 focus:ring-[#1e3c72] outline-none disabled:bg-slate-50" disabled={!formData.servicio} required>
+                            <option value="">{formData.servicio ? 'Seleccione ubicación...' : '← Elija Servicio primero'}</option>
+                            {formData.servicio && localesPorServicio[formData.servicio]?.map((l, i) => (<option key={i} value={l}>{l}</option>))}
+                        </select>
                     </div>
                   </div>
 
+                  {/* Sección PAGO PRESTADOR */}
                   {formData.modalidad === 'PAGO' && (
-                    <div className="bg-gray-50 p-3 rounded border border-gray-200">
-                      <div className="flex gap-2 mb-2">
-                        <div className="w-1/2">
-                          <div className="flex justify-between items-center mb-1">
-                             <label className="text-xs font-bold text-gray-500">IDENTIFICADOR</label>
-                             <div className="flex bg-gray-200 rounded p-0.5">
-                                <button type="button" onClick={() => setFormData(prev => ({...prev, tipoDocumento: 'PATENTE', patente: ''}))} className={`px-2 py-0.5 text-[9px] font-bold rounded transition-all ${formData.tipoDocumento === 'PATENTE' ? 'bg-white text-[#1e3c72] shadow' : 'text-gray-500'}`}>PAT</button>
-                                <button type="button" onClick={() => setFormData(prev => ({...prev, tipoDocumento: 'RUT', patente: ''}))} className={`px-2 py-0.5 text-[9px] font-bold rounded transition-all ${formData.tipoDocumento === 'RUT' ? 'bg-white text-green-600 shadow' : 'text-gray-500'}`}>RUT</button>
+                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-4 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 bg-blue-100 text-blue-600 text-[9px] font-bold px-2 py-1 rounded-bl-lg uppercase tracking-wide">Área Pagos</div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="flex justify-between items-center mb-1.5">
+                             <label className="text-xs font-bold text-slate-500 uppercase">Identificador</label>
+                             <div className="flex bg-white border border-slate-200 rounded p-0.5">
+                                <button type="button" onClick={() => setFormData(prev => ({...prev, tipoDocumento: 'PATENTE', patente: ''}))} className={`px-2 py-0.5 text-[9px] font-bold rounded ${formData.tipoDocumento === 'PATENTE' ? 'bg-slate-800 text-white' : 'text-slate-400'}`}>PAT</button>
+                                <button type="button" onClick={() => setFormData(prev => ({...prev, tipoDocumento: 'RUT', patente: ''}))} className={`px-2 py-0.5 text-[9px] font-bold rounded ${formData.tipoDocumento === 'RUT' ? 'bg-emerald-600 text-white' : 'text-slate-400'}`}>RUT</button>
                              </div>
                           </div>
-                          <input type="text" name="patente" value={formData.patente} onChange={handleIdentificadorChange} onBlur={handleRutBlur} placeholder={formData.tipoDocumento === 'PATENTE' ? "ABCD12" : "12.345.678-K"} className="w-full border p-2 rounded font-mono uppercase font-bold text-center tracking-wide" maxLength={formData.tipoDocumento === 'PATENTE' ? 6 : 12} />
+                          <div className="relative">
+                              <Hash className="absolute left-3 top-3 text-slate-400" size={14} />
+                              <input type="text" name="patente" value={formData.patente} onChange={handleIdentificadorChange} onBlur={handleRutBlur} placeholder={formData.tipoDocumento === 'PATENTE' ? "ABCD12" : "12345678-K"} className="w-full border border-slate-200 p-2.5 pl-9 rounded-lg font-mono uppercase font-bold tracking-wide focus:ring-2 focus:ring-[#1e3c72] outline-none text-center" maxLength={formData.tipoDocumento === 'PATENTE' ? 6 : 12} />
+                          </div>
                         </div>
-                        <div className="w-1/2">
-                          <label className="text-xs font-bold text-gray-500">CONCEPTO</label>
-                          <select name="tipo" value={formData.tipo} onChange={handleChange} className="w-full border p-2 rounded text-sm text-[#1e3c72] font-bold"><option value="">Seleccione...</option><option value="AMBULANCIA">AMBULANCIA</option><option value="DOBLE RUTA">DOBLE RUTA</option><option value="FALSO FLETE">FALSO FLETE</option><option value="INCENTIVO">INCENTIVO</option><option value="OTRO">OTRO</option></select>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Concepto</label>
+                          <select name="tipo" value={formData.tipo} onChange={handleChange} className="w-full border border-slate-200 p-2.5 rounded-lg text-xs font-bold text-[#1e3c72] focus:ring-2 focus:ring-[#1e3c72] outline-none">
+                              <option value="">Seleccione...</option><option value="AMBULANCIA">AMBULANCIA</option><option value="DOBLE RUTA">DOBLE RUTA</option><option value="FALSO FLETE">FALSO FLETE</option><option value="INCENTIVO">INCENTIVO</option><option value="OTRO">OTRO</option>
+                          </select>
                         </div>
                       </div>
+
                       <div>
-                        <label className="text-xs font-bold text-gray-500">MONTO A PAGAR <span className="text-red-500">*</span></label>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Monto a Pagar</label>
                         {esFalsoFleteHD() ? (
-                          <select name="porcentaje" value={formData.porcentaje} onChange={handleChange} className="w-full border p-2 rounded font-bold text-[#1e3c72]"><option value="50%">50%</option><option value="70%">70%</option><option value="100%">100%</option></select>
+                          <select name="porcentaje" value={formData.porcentaje} onChange={handleChange} className="w-full border border-slate-200 p-2.5 rounded-lg font-bold text-[#1e3c72]"><option value="50%">50%</option><option value="70%">70%</option><option value="100%">100%</option></select>
                         ) : (
-                          <input type="text" name="montoPrestador" value={formatCLP(formData.montoPrestador)} onChange={handleMontoChange} placeholder="$ 0" className="w-full border p-2 rounded font-bold text-right text-[#1e3c72]" />
+                          <div className="relative">
+                              <DollarSign className="absolute left-3 top-3 text-slate-400" size={16} />
+                              <input type="text" name="montoPrestador" value={formatCLP(formData.montoPrestador)} onChange={handleMontoChange} placeholder="0" className="w-full border border-slate-200 p-2.5 pl-8 rounded-lg font-bold text-right text-slate-800 focus:ring-2 focus:ring-[#1e3c72] outline-none" />
+                          </div>
                         )}
                       </div>
+
+                      {/* Checkbox Cobro */}
+                      <label className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-emerald-300 transition-colors">
+                          <input type="checkbox" name="incluirCobro" checked={formData.incluirCobro} onChange={handleChange} className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500" />
+                          <span className="text-xs font-bold text-slate-600 uppercase">Incluir cobro al cliente</span>
+                      </label>
                     </div>
                   )}
 
-                  {formData.modalidad === 'PAGO' && (
-                    <div className="flex items-center gap-2 pl-4"><input type="checkbox" name="incluirCobro" checked={formData.incluirCobro} onChange={handleChange} className="w-4 h-4 text-[#d63384]" /><label className="text-sm font-bold text-[#1e3c72]">INCLUIR COBRO AL CLIENTE</label></div>
-                  )}
-
+                  {/* Sección COBRO CLIENTE */}
                   {(formData.modalidad === 'COBRO' || formData.incluirCobro) && (
-                    <div className="bg-white border-2 border-[#1e3c72] p-3 rounded">
-                      <h6 className="text-[#d63384] font-bold text-xs mb-2">DATOS COBRO CLIENTE</h6>
-                      <div className="mb-2"><label className="text-xs font-bold text-gray-500">MONTO A COBRAR</label><input type="text" name="montoCliente" value={formatCLP(formData.montoCliente)} onChange={handleMontoChange} className="w-full border p-2 rounded font-bold" placeholder="$ 0" /></div>
-                      <div><label className="text-xs font-bold text-gray-500">DETALLE</label><input type="text" name="detalleCliente" value={formData.detalleCliente} onChange={handleChange} placeholder="Ej: Multa rechazo" className="w-full border p-2 rounded text-sm" /></div>
+                    <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 space-y-4 animate-in fade-in slide-in-from-top-2">
+                      <div className="flex items-center gap-2 mb-2 text-emerald-700 font-bold text-xs uppercase tracking-wide">
+                          <Receipt size={14} /> Datos de Facturación
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div>
+                              <label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block">Monto Cobro</label>
+                              <input type="text" name="montoCliente" value={formatCLP(formData.montoCliente)} onChange={handleMontoChange} className="w-full border border-emerald-200 p-2.5 rounded-lg font-bold text-emerald-700 bg-white focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="$ 0" />
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block">Detalle / Motivo</label>
+                              <input type="text" name="detalleCliente" value={formData.detalleCliente} onChange={handleChange} placeholder="Ej: Multa rechazo" className="w-full border border-emerald-200 p-2.5 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none" />
+                          </div>
+                      </div>
                     </div>
                   )}
 
-                  <div><label className="text-xs font-bold text-gray-500">COMENTARIO</label><textarea name="comentario" value={formData.comentario} onChange={handleChange} rows="2" className="w-full border p-2 rounded uppercase" required></textarea></div>
-                  <button disabled={loading} className="w-full bg-[#1e3c72] hover:bg-[#14284d] text-white font-bold py-3 rounded border-b-4 border-black active:border-b-0 active:translate-y-1 transition-all">{loading ? 'PROCESANDO...' : 'GUARDAR REGISTRO  '}</button>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Comentario Adicional</label>
+                    <div className="relative">
+                        <FileText className="absolute left-3 top-3 text-slate-400" size={16} />
+                        <textarea name="comentario" value={formData.comentario} onChange={handleChange} rows="2" className="w-full border border-slate-200 p-2.5 pl-9 rounded-lg text-sm uppercase resize-none focus:ring-2 focus:ring-[#1e3c72] outline-none" placeholder="Observaciones..." required></textarea>
+                    </div>
+                  </div>
+
+                  <button disabled={loading} className="w-full bg-[#1e3c72] hover:bg-[#152a50] text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-900/10 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70">
+                    {loading ? <span className="animate-spin">↻</span> : <Save size={18} />}
+                    {loading ? 'Procesando...' : 'Guardar Registro'}
+                  </button>
+
                 </form>
               </div>
             </div>
           </div>
 
-          {/* TABLA RECIENTE */}
-          <div className="w-full lg:w-7/12">
-            <div className="bg-white rounded shadow-sm border-t-4 border-[#d63384] h-full">
-              <div className="p-4 border-b flex justify-between items-center"><h6 className="text-[#1e3c72] font-bold text-uppercase"> ÚLTIMOS INGRESOS (20)</h6><button onClick={fetchRegistros} className="text-gray-400 hover:text-blue-600"></button></div>
-              <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-gray-100 text-xs text-gray-500 uppercase"><tr><th className="px-4 py-2">Fecha</th><th className="px-4 py-2">Servicio</th><th className="px-4 py-2">Sala</th><th className="px-4 py-2">Concepto</th><th className="px-4 py-2">Pago</th><th className="px-4 py-2">Cobro</th></tr></thead><tbody>{registros.length === 0 ? (<tr><td colSpan="6" className="text-center py-6 text-gray-400">Sin datos recientes</td></tr>) : (registros.map(reg => (<tr key={reg.id} className="border-b hover:bg-blue-50"><td className="px-4 py-3">{reg.fecha_evento}</td><td className="px-4 py-3 font-bold text-[#1e3c72]">{reg.servicio}</td><td className="px-4 py-3 font-bold">{reg.local}</td><td className="px-4 py-3"><span className="bg-gray-200 px-2 py-1 rounded text-xs font-bold">{reg.tipo_concepto}</span></td><td className="px-4 py-3 font-mono">{!isNaN(reg.monto_prestador) ? formatCLP(reg.monto_prestador) : reg.monto_prestador}</td><td className="px-4 py-3 text-red-600 font-bold">{reg.monto_cliente > 0 ? formatCLP(reg.monto_cliente) : '-'}</td></tr>)))}</tbody></table></div>
+          {/* --- TABLA RECIENTE (COLUMNA DERECHA) --- */}
+          <div className="lg:col-span-7">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                 <h2 className="text-slate-700 font-bold text-sm uppercase tracking-wide">Últimos Ingresos</h2>
+                 <button onClick={fetchRegistros} className="text-xs font-bold text-[#1e3c72] hover:underline">Actualizar</button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase text-slate-500 font-bold tracking-wider">
+                        <tr>
+                            <th className="px-5 py-3">Fecha</th>
+                            <th className="px-5 py-3">Servicio</th>
+                            <th className="px-5 py-3">Concepto</th>
+                            <th className="px-5 py-3 text-right">Pago</th>
+                            <th className="px-5 py-3 text-right">Cobro</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                        {registros.length === 0 ? (
+                            <tr><td colSpan="5" className="text-center py-10 text-slate-400">Sin movimientos recientes</td></tr>
+                        ) : (
+                            registros.map(reg => (
+                                <tr key={reg.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-5 py-3 text-slate-600 font-medium whitespace-nowrap">{reg.fecha_evento}</td>
+                                    <td className="px-5 py-3">
+                                        <div className="font-bold text-[#1e3c72] text-xs">{reg.servicio}</div>
+                                        <div className="text-[10px] text-slate-400 truncate max-w-[100px]" title={reg.local}>{reg.local}</div>
+                                    </td>
+                                    <td className="px-5 py-3">
+                                        <ConceptoBadge tipo={reg.tipo_concepto} />
+                                    </td>
+                                    <td className="px-5 py-3 text-right font-mono font-medium text-slate-700">
+                                        {!isNaN(reg.monto_prestador) ? formatCLP(reg.monto_prestador) : reg.monto_prestador}
+                                    </td>
+                                    <td className="px-5 py-3 text-right font-mono font-bold text-emerald-600">
+                                        {reg.monto_cliente > 0 ? formatCLP(reg.monto_cliente) : '-'}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+              </div>
             </div>
           </div>
+
       </div>
     </div>
   )
