@@ -221,6 +221,24 @@ function BlockSelector({ config, setConfig, mapaConteos }) {
     )
 }
 
+
+function InvalidateSize() {
+  const map = useMap();
+
+  useEffect(() => {
+    // le damos un pequeño tiempo a React para que aplique tamaños
+    const t = setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+
+    return () => clearTimeout(t);
+  }, [map]);
+
+  return null;
+}
+
+
+
 // --- 4. RUTEADOR PRINCIPAL ---
 export default function Ruteo() {
   const [rawData, setRawData] = useState(() => JSON.parse(localStorage.getItem('ruteo_rawData')) || [])
@@ -411,7 +429,8 @@ export default function Ruteo() {
   const toggleRutaDestacada = (r) => { const newSet = new Set(rutasDestacadas); if (newSet.has(r)) newSet.delete(r); else newSet.add(r); setRutasDestacadas(newSet); }
 
   return (
-    <div className="flex h-full bg-gray-100 font-sans overflow-hidden rounded-xl relative">
+   <div className="flex w-full h-[calc(100vh-64px)] min-h-[600px] bg-gray-100 font-sans overflow-hidden rounded-xl relative">
+
       <ToastNotification notification={notification} onClose={() => setNotification({...notification, visible: false})} />
       <ConfirmModal
         isOpen={showResetConfirm}
@@ -454,6 +473,7 @@ export default function Ruteo() {
 
       <div className="flex-1 relative h-full bg-gray-200">
         <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+            <InvalidateSize />
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OSM' />
           <MapFocusHandler rutasDestacadas={rutasDestacadas} rutasReales={rutasReales} pedidos={pedidos} />
           <CircleSelector active={isCircleMode} onCircleComplete={handleCircleComplete} />

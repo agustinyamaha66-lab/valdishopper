@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "./context/AuthContext";
+import "leaflet/dist/leaflet.css";
 
 import Sidebar from "./components/layout/sidebar.jsx";
 import Topbar from "./components/layout/topbar.jsx";
