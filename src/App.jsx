@@ -4,7 +4,7 @@ import { useAuth } from "./context/AuthContext";
 // Ajusta este import según tu proyecto:
 // Opción A (común): "./components/Layout/Layout"
 // Opción B: "./components/Layout"
-import Layout from "./components/Layout/Layout";
+import Layout from "./components/Layout/";
 
 import Login from "./pages/Login";
 import Home from "./pages/Home";
