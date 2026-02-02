@@ -4,11 +4,9 @@ import { useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 
-// Tus pantallas (ajusta rutas si las tienes en components/Layout u otro lado)
 import Transporte from "./components/Transporte";
 import Ruteo from "./components/Ruteo";
 import ReportesFinancieros from "./components/ReportesFinancieros";
-// ...importa aquí las demás pantallas que tengas
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, role, loading } = useAuth();
@@ -16,11 +14,21 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (loading) return <div style={{ padding: 16 }}>Cargando...</div>;
   if (!user) return <Navigate to="/login" replace />;
 
-  // ✅ Si la ruta exige roles y todavía no hay rol (o no existe), NO deja pasar
+  // Si la ruta exige roles y todavía no hay rol => bloquear
   if (allowedRoles && !role) return <Navigate to="/" replace />;
 
-  // ✅ Si el rol no está permitido, bloquea
+  // Si el rol no está permitido => bloquear
   if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/" replace />;
+
+  return children;
+};
+
+// Para páginas públicas como /login: si ya hay sesión, redirigir al home
+const PublicRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div style={{ padding: 16 }}>Cargando...</div>;
+  if (user) return <Navigate to="/" replace />;
 
   return children;
 };
@@ -30,13 +38,26 @@ export default function App() {
     <Router>
       <Routes>
         {/* Públicas */}
-        <Route path="/login" element={<Login />} />
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
 
-        {/* Home: puede ser pública o protegida según tu diseño.
-            Si la quieres protegida, envuélvela con ProtectedRoute */}
-        <Route path="/" element={<Home />} />
+        {/* Home protegido: si no hay sesión => /login */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* Protegidas por login (cualquier usuario logueado) */}
+        {/* Protegidas por login */}
         <Route
           path="/transporte"
           element={
