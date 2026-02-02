@@ -4,8 +4,9 @@ import { useAuth } from "./context/AuthContext";
 
 // ✅ IMPORTS: en Vercel (Linux) el path ES case-sensitive.
 // Si tu carpeta es "layouts" (minúscula) y tus archivos son "Sidebar.jsx" / "Topbar.jsx":
-import Sidebar from "./components/layouts/Sidebar.jsx";
-import Topbar from "./components/layouts/Topbar.jsx";
+import Sidebar from "./components/layout/sidebar.jsx";
+import Topbar from "./components/layout/topbar.jsx";
+
 
 // Si en tu proyecto están en minúscula exacta, usa esto en vez de lo anterior:
 // import Sidebar from "./components/layouts/sidebar.jsx";
