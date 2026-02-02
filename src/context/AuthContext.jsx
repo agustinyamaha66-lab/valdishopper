@@ -1,144 +1,147 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { createContext, useState, useEffect, useContext } from 'react'
+import { supabase } from '../lib/supabase'
 
-const AuthContext = createContext(null);
+const AuthContext = createContext(null)
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Busca perfil/rol en la tabla perfiles
-  const fetchPerfil = async (userId) => {
-    try {
-      console.log("🔍 [AuthContext] Buscando perfil en DB para usuario:", userId);
-
-      const { data, error } = await supabase
-        .from("perfiles")
-        .select("rol")
-        .eq("id", userId)
-        .single();
-
-      if (error) {
-        // Si es "no rows", supabase suele tirar error también en single()
-        console.error("❌ [AuthContext] Error al buscar perfil:", error.message);
-        return null;
-      }
-
-      if (!data) {
-        console.warn("⚠️ [AuthContext] No se encontró perfil para el usuario.");
-        return null;
-      }
-
-      console.log("✅ [AuthContext] Perfil encontrado:", data);
-      return data;
-    } catch (e) {
-      console.error("❌ [AuthContext] Excepción en fetchPerfil:", e);
-      return null;
-    }
-  };
-
-  const cerrarSesionYLimpiar = async (motivo = "") => {
-    if (motivo) console.warn("🚪 [AuthContext] Cerrando sesión:", motivo);
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.error("❌ [AuthContext] Error al hacer signOut:", e);
-    } finally {
-      setUser(null);
-      setRole(null);
-      setLoading(false);
-    }
-  };
-
-  // Carga sesión inicial al montar
-  const inicializarSesion = async () => {
-    try {
-      console.log("🔄 [AuthContext] inicializarSesion() ejecutándose...");
-
-      const { data, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error("❌ [AuthContext] Error getSession:", error.message);
-        setLoading(false);
-        return;
-      }
-
-      const session = data?.session;
-
-      if (!session?.user) {
-        console.log("ℹ️ [AuthContext] No hay sesión activa.");
-        setUser(null);
-        setRole(null);
-        setLoading(false);
-        return;
-      }
-
-      // Hay usuario, buscamos perfil
-      const perfil = await fetchPerfil(session.user.id);
-
-      if (!perfil) {
-        // ✅ Evita "zombies": auth ok, pero sin perfil
-        await cerrarSesionYLimpiar("Sesión válida pero sin perfil (zombie) en inicializarSesion()");
-        return;
-      }
-
-      setUser(session.user);
-      setRole(perfil.rol);
-      setLoading(false);
-    } catch (e) {
-      console.error("❌ [AuthContext] Excepción en inicializarSesion:", e);
-      setLoading(false);
-    }
-  };
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null)
+  const [role, setRole] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    console.log("🟢 [AuthContext] Provider montado. Iniciando efectos...");
-    inicializarSesion();
+    let mounted = true
+    console.log("🟢 [AuthContext] Provider montado. Iniciando efectos...")
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("🔔 [AuthContext] Evento de Auth disparado:", event);
+    const fetchPerfil = async (userId) => {
+      console.log("🔍 [AuthContext] Buscando perfil en DB para usuario:", userId)
+      try {
+        const { data, error } = await supabase
+          .from('perfiles')
+          .select('rol')
+          .eq('id', userId)
+          .single()
 
-        // Si se cerró sesión
-        if (event === "SIGNED_OUT" || !session?.user) {
-          console.log("👋 [AuthContext] Sesión cerrada o sin usuario.");
-          setUser(null);
-          setRole(null);
-          setLoading(false);
-          return;
+        if (error) {
+          console.error("❌ [AuthContext] Error al buscar perfil:", error.message)
+          return null
+        }
+        if (!data) {
+          console.warn("⚠️ [AuthContext] No se encontró perfil (data vacía).")
+          return null
         }
 
-        // SIGNED_IN / TOKEN_REFRESHED: refrescamos perfil
-        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-          console.log("🔄 [AuthContext] Recargando perfil tras evento...");
+        console.log("✅ [AuthContext] Perfil encontrado:", data)
+        return data
+      } catch (e) {
+        console.error("💥 [AuthContext] Excepción en fetchPerfil:", e)
+        return null
+      }
+    }
 
-          const perfil = await fetchPerfil(session.user.id);
-
-          if (!perfil) {
-            // ✅ Evita "zombies": auth ok, pero sin perfil
-            await cerrarSesionYLimpiar("Sesión válida pero sin perfil tras evento de Auth (zombie)");
-            return;
-          }
-
-          setUser(session.user);
-          setRole(perfil.rol);
-          setLoading(false);
+    const cerrarSesionYLimpiar = async (motivo = "") => {
+      if (motivo) console.warn("🚪 [AuthContext] Cerrando sesión:", motivo)
+      try {
+        await supabase.auth.signOut()
+      } catch (e) {
+        console.error("❌ [AuthContext] Error al hacer signOut:", e)
+      } finally {
+        if (mounted) {
+          setUser(null)
+          setRole(null)
+          setLoading(false)
         }
       }
-    );
+    }
+
+    const inicializarSesion = async () => {
+      console.log("🔄 [AuthContext] inicializarSesion() ejecutándose...")
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+
+        if (error) console.error("❌ [AuthContext] Error obteniendo sesión:", error)
+        console.log("🎫 [AuthContext] Sesión actual en navegador:", session ? "EXISTE" : "NULL")
+
+        if (session?.user && mounted) {
+          const perfil = await fetchPerfil(session.user.id)
+
+          if (perfil) {
+            console.log("👍 [AuthContext] Usuario y Rol válidos. Actualizando estado...")
+            setUser(session.user)
+            setRole(perfil.rol)
+          } else {
+            console.warn("💀 [AuthContext] ZOMBIE: Auth ok pero sin perfil. Cerrando sesión...")
+            await cerrarSesionYLimpiar("Sesión válida pero sin perfil (zombie) en inicializarSesion()")
+            return
+          }
+        } else {
+          console.log("ℹ️ [AuthContext] No hay sesión activa.")
+          setUser(null)
+          setRole(null)
+        }
+      } catch (error) {
+        console.error("💥 [AuthContext] Error fatal en inicializarSesion:", error)
+      } finally {
+        if (mounted) {
+          console.log("🛑 [AuthContext] Finalizando carga (setLoading false)")
+          setLoading(false)
+        }
+      }
+    }
+
+    inicializarSesion()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`🔔 [AuthContext] Evento de Auth disparado: ${event}`)
+      if (!mounted) return
+
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        console.log("👋 [AuthContext] Sesión cerrada o sin usuario.")
+        setUser(null)
+        setRole(null)
+        setLoading(false)
+        return
+      }
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log("🔄 [AuthContext] Recargando perfil tras evento...")
+        const perfil = await fetchPerfil(session.user.id)
+
+        if (perfil) {
+          setUser(session.user)
+          setRole(perfil.rol)
+          setLoading(false)
+        } else {
+          console.warn("💀 [AuthContext] ZOMBIE tras evento Auth: no hay perfil. Cerrando sesión...")
+          await cerrarSesionYLimpiar("Sesión válida pero sin perfil tras evento Auth (zombie)")
+        }
+      }
+    })
 
     return () => {
-      listener?.subscription?.unsubscribe?.();
-    };
-  }, []);
+      console.log("🔌 [AuthContext] Desmontando provider.")
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
 
-  const value = {
-    user,
-    role,
-    loading,
-  };
+  const signOut = async () => {
+    console.log("🚪 [AuthContext] Ejecutando signOut manual...")
+    setUser(null)
+    setRole(null)
+    await supabase.auth.signOut()
+  }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+  return (
+    <AuthContext.Provider value={{ user, role, loading, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const ctx = useContext(AuthContext)
+  if (!ctx) {
+    throw new Error("useAuth() debe usarse dentro de <AuthProvider>.")
+  }
+  return ctx
+}
