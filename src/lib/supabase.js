@@ -1,10 +1,17 @@
 // src/lib/supabase.js
+import { createClient } from "@supabase/supabase-js";
 
-import { createClient } from '@supabase/supabase-js'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabaseUrl = 'https://ceqqxyszrkbuzvlqnvfp.supabase.co'
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error(
+    "❌ [supabase] Faltan variables de entorno. Revisa Vercel -> Environment Variables:",
+    {
+      VITE_SUPABASE_URL: !!supabaseUrl,
+      VITE_SUPABASE_ANON_KEY: !!supabaseAnonKey,
+    }
+  );
+}
 
-// LA CLAVE CORRECTA DEBE EMPEZAR ASÍ (NO ES sb_publishable...)
-const supabaseKey = 'sb_publishable_62b3jcxbXz5JMSGrBP194w_X3dSNZiu'
-
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

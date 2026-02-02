@@ -1,6 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 
+// Ajusta este import según tu proyecto:
+// Opción A (común): "./components/Layout/Layout"
+// Opción B: "./components/Layout"
+import Layout from "./components/Layout/Layout";
+
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 
@@ -14,16 +19,12 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (loading) return <div style={{ padding: 16 }}>Cargando...</div>;
   if (!user) return <Navigate to="/login" replace />;
 
-  // Si la ruta exige roles y todavía no hay rol => bloquear
   if (allowedRoles && !role) return <Navigate to="/" replace />;
-
-  // Si el rol no está permitido => bloquear
   if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/" replace />;
 
   return children;
 };
 
-// Para páginas públicas como /login: si ya hay sesión, redirigir al home
 const PublicRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
@@ -37,7 +38,7 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Públicas */}
+        {/* LOGIN sin layout */}
         <Route
           path="/login"
           element={
@@ -47,46 +48,34 @@ export default function App() {
           }
         />
 
-        {/* Home protegido: si no hay sesión => /login */}
+        {/* TODA la app protegida con Layout (sidebar/topbar) */}
         <Route
-          path="/"
           element={
             <ProtectedRoute>
-              <Home />
+              <Layout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route path="/" element={<Home />} />
+          <Route path="/transporte" element={<Transporte />} />
+          <Route
+            path="/ruteo"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "cco"]}>
+                <Ruteo />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reportes-financieros"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <ReportesFinancieros />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
 
-        {/* Protegidas por login */}
-        <Route
-          path="/transporte"
-          element={
-            <ProtectedRoute>
-              <Transporte />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Protegidas por rol */}
-        <Route
-          path="/ruteo"
-          element={
-            <ProtectedRoute allowedRoles={["admin", "cco"]}>
-              <Ruteo />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/reportes-financieros"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <ReportesFinancieros />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* 404 */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
