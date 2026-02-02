@@ -2,10 +2,14 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 
-// OJO: ajusta la ruta según tu estructura real:
-// Si tu carpeta es: src/components/layouts/Sidebar.jsx y Topbar.jsx
-import Sidebar from "./components/layouts/sidebar.jsx";
-import Topbar from "./components/layouts/topbar.jsx";
+// ✅ IMPORTS: en Vercel (Linux) el path ES case-sensitive.
+// Si tu carpeta es "layouts" (minúscula) y tus archivos son "Sidebar.jsx" / "Topbar.jsx":
+import Sidebar from "./components/layouts/Sidebar.jsx";
+import Topbar from "./components/layouts/Topbar.jsx";
+
+// Si en tu proyecto están en minúscula exacta, usa esto en vez de lo anterior:
+// import Sidebar from "./components/layouts/sidebar.jsx";
+// import Topbar from "./components/layouts/topbar.jsx";
 
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -35,7 +39,6 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
-// Layout "inline": arma Sidebar + Topbar + contenido
 const AppLayout = ({ children }) => (
   <div className="flex min-h-screen">
     <Sidebar />
@@ -50,7 +53,6 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        {/* LOGIN (sin layout) */}
         <Route
           path="/login"
           element={
@@ -60,7 +62,6 @@ export default function App() {
           }
         />
 
-        {/* APP (con layout) */}
         <Route
           path="/"
           element={
