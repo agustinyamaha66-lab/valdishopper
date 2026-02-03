@@ -1,7 +1,8 @@
+import PageHeader from "../ui/PageHeader";
+import { DollarSign } from "lucide-react";
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import {
-  DollarSign,
   Receipt,
   Calendar,
   MapPin,
@@ -196,16 +197,13 @@ export default function GestionCostos() {
           </div>
       )}
 
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-            <h1 className="text-3xl font-bold text-[#1e3c72] tracking-tight flex items-center gap-3">
-                <DollarSign className="text-[#d63384]" size={32} />
-                Gestión de Costos
-            </h1>
-            <p className="text-slate-500 mt-2 text-sm font-medium">Registro de pagos extraordinarios y cobros a clientes.</p>
-        </div>
-      </div>
+    <PageHeader
+  title="Gestión de Costos"
+  subtitle="Registro de pagos extraordinarios y cobros a clientes"
+  icon={DollarSign}
+/>
+
+
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 

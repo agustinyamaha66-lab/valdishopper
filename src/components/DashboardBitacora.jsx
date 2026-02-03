@@ -31,6 +31,51 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, LineElement, PointElement)
 
+// --- 1. COMPONENTE PAGE HEADER (NUEVO) ---
+function PageHeader({
+  eyebrow = "",
+  title = "",
+  subtitle = "",
+  icon: Icon = null,
+  iconClassName = "text-[#d63384]",
+  gradient = "from-[#0b1f44]/95 via-[#163a6b]/90 to-[#0b1f44]/95",
+  right = null,
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-white/20 shadow-xl mb-6">
+      <div className={`absolute inset-0 bg-gradient-to-r ${gradient}`} />
+
+      {/* Decoración de fondo */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-10 left-10 h-28 w-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute -bottom-10 right-10 h-28 w-64 rounded-full bg-cyan-300/10 blur-2xl" />
+      </div>
+
+      <div className="relative z-10 px-6 py-6 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6">
+        <div>
+          {!!eyebrow && (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70">
+              {eyebrow}
+            </p>
+          )}
+          <h1 className="mt-1 text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-3">
+            {Icon && <Icon size={30} className={iconClassName} />}
+            {title}
+          </h1>
+          {!!subtitle && (
+            <p className="text-blue-100/80 text-sm mt-2 font-medium max-w-2xl leading-relaxed">
+              {subtitle}
+            </p>
+          )}
+        </div>
+
+        {/* Renderiza controles a la derecha (Tabs) */}
+        {right ? <div className="w-full xl:w-auto">{right}</div> : null}
+      </div>
+    </div>
+  );
+}
+
 // --- DATOS MAESTROS ---
 const localesPorServicio = {
   LAT: ["120 Temuco", "121 Punta Arenas", "143 Talca", "144 Parral", "146 San Javier", "182 Buin", "276 Lampa", "41 Huechuraba", "42 Curicó", "518 Valparaíso", "54 La Florida 54", "608 Chillán", "611 La Florida 611", "618 Osorno", "627 San Vicente"],
@@ -251,31 +296,35 @@ export default function DashboardBitacora() {
     <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 font-sans animate-fade-in">
       <ToastNotification notification={notification} onClose={() => setNotification({...notification, visible: false})} />
 
-      {/* HEADER EJECUTIVO */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6">
-        <div>
-            <h1 className="text-3xl font-black text-[#1e3c72] tracking-tight flex items-center gap-3">
-                <LayoutDashboard className="text-[#d63384]" size={32} />
-                Dashboard de Bitácora
-            </h1>
-            <p className="text-slate-500 mt-2 text-sm font-medium">Monitor de operaciones, incidencias y cumplimiento de servicio.</p>
-        </div>
+      {/* ==============================================================
+          NUEVO PAGE HEADER INTEGRADO (Reemplaza al anterior header)
+          ============================================================== */}
+      <PageHeader
+        eyebrow=""
+        title="DASHBOARD DE BITÁCORA"
+        subtitle="Monitor de operaciones, incidencias y cumplimiento de servicio."
+        icon={LayoutDashboard}
+        // Pasamos el selector de vistas a la parte derecha
+        right={
+            <div className="bg-white p-1 rounded-xl shadow-lg border border-slate-200 inline-flex self-start">
+                {['DIARIA', 'SEMANAL', 'MENSUAL', 'REGISTROS'].map(tab => (
+                    <button
+                        key={tab}
+                        onClick={() => setDashTab(tab)}
+                        className={`px-5 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
+                            dashTab === tab 
+                            ? 'bg-[#1e3c72] text-white shadow-md' 
+                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                        }`}
+                    >
+                        {tab}
+                    </button>
+                ))}
+            </div>
+        }
+      />
 
-        {/* SELECTOR DE VISTA (SEGMENTED CONTROL) */}
-        <div className="bg-white p-1.5 rounded-xl shadow-sm border border-slate-200 inline-flex self-start">
-            {['DIARIA', 'SEMANAL', 'MENSUAL', 'REGISTROS'].map(tab => (
-                <button
-                    key={tab}
-                    onClick={() => setDashTab(tab)}
-                    className={`px-5 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${dashTab===tab ? 'bg-[#1e3c72] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
-                >
-                    {tab}
-                </button>
-            ))}
-        </div>
-      </div>
-
-      {/* BARRA DE HERRAMIENTAS UNIFICADA */}
+      {/* BARRA DE HERRAMIENTAS UNIFICADA (Filtros y Export) */}
       <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
           <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
               <div className="relative group w-full sm:w-auto">

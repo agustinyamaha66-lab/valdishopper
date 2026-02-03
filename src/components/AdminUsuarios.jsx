@@ -9,8 +9,54 @@ import {
   Power,
   Filter,
   CheckCircle2,
-  Lock // Nuevo icono para indicar bloqueo
+  Lock,
+  Users // Agregué Users para el icono del header
 } from 'lucide-react'
+
+// --- 1. COMPONENTE PAGE HEADER (Integrado) ---
+function PageHeader({
+  eyebrow = "",
+  title = "",
+  subtitle = "",
+  icon: Icon = null,
+  iconClassName = "text-[#d63384]",
+  gradient = "from-[#0b1f44]/95 via-[#163a6b]/90 to-[#0b1f44]/95",
+  right = null,
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-white/20 shadow-xl mb-6">
+      <div className={`absolute inset-0 bg-gradient-to-r ${gradient}`} />
+
+      {/* Decoración de fondo */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-10 left-10 h-28 w-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute -bottom-10 right-10 h-28 w-64 rounded-full bg-cyan-300/10 blur-2xl" />
+      </div>
+
+      <div className="relative z-10 px-6 py-6 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6">
+        <div>
+          {!!eyebrow && (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70">
+              {eyebrow}
+            </p>
+          )}
+          <h1 className="mt-1 text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-3">
+            {Icon && <Icon size={30} className={iconClassName} />}
+            {title}
+          </h1>
+          {!!subtitle && (
+            <p className="text-blue-100/80 text-sm mt-2 font-medium max-w-2xl leading-relaxed">
+              {subtitle}
+            </p>
+          )}
+        </div>
+
+        {/* Acciones a la derecha */}
+        {right ? <div className="w-full xl:w-auto">{right}</div> : null}
+      </div>
+    </div>
+  );
+}
 
 export default function AdminUsuarios() {
   const { user } = useAuth()
@@ -98,21 +144,25 @@ export default function AdminUsuarios() {
   return (
     <div className="min-h-screen bg-gray-50/50 p-6 md:p-12 font-sans">
 
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-[#1e3c72] tracking-tight">Gestión de Usuarios</h1>
-          <p className="text-slate-500 mt-1 text-sm">Control de accesos y seguridad.</p>
-        </div>
-        <button
-            onClick={fetchUsuarios}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium shadow-sm"
-        >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            {loading ? 'Sincronizando...' : 'Actualizar'}
-        </button>
-      </div>
+      {/* ==============================================================
+          NUEVO PAGE HEADER
+          ============================================================== */}
+      <PageHeader
+        eyebrow=""
+        title="GESTIÓN DE USUARIOS"
+        subtitle="Control centralizado de accesos, roles y permisos de seguridad."
+        icon={Users}
+        right={
+            <button
+                onClick={fetchUsuarios}
+                disabled={loading}
+                className="flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all text-xs font-bold uppercase tracking-wide backdrop-blur-sm"
+            >
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                {loading ? 'Sincronizando...' : 'Actualizar Lista'}
+            </button>
+        }
+      />
 
       {/* FILTROS */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -121,7 +171,7 @@ export default function AdminUsuarios() {
             <input
                 type="text"
                 placeholder="Buscar por correo..."
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-[#d63384] focus:ring-1 focus:ring-[#d63384] outline-none"
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-[#d63384] focus:ring-1 focus:ring-[#d63384] outline-none transition-all"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
             />
@@ -133,7 +183,7 @@ export default function AdminUsuarios() {
             <select
                 value={filtroRol}
                 onChange={(e) => setFiltroRol(e.target.value)}
-                className="text-sm border-none bg-transparent font-medium text-gray-600 focus:ring-0 cursor-pointer"
+                className="text-sm border-none bg-transparent font-medium text-gray-600 focus:ring-0 cursor-pointer outline-none"
             >
                 <option value="todos">Todos</option>
                 <option value="admin">Admin</option>

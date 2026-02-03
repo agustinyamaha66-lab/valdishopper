@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-// Usamos lucide-react para iconos más nítidos (estándar enterprise)
-import { Menu, X, LogOut, Clock, Calendar, User } from "lucide-react";
+import { Menu, X, LogOut, Clock } from "lucide-react";
 
 export default function Topbar({ sidebarOpen, setSidebarOpen }) {
   const navigate = useNavigate();
@@ -45,7 +44,7 @@ export default function Topbar({ sidebarOpen, setSidebarOpen }) {
   return (
     <header
       className={`fixed top-0 right-0 h-16 z-40 flex items-center justify-between px-6 transition-all duration-300
-      bg-[#1e3c72]/85 backdrop-blur-md border-b border-white/10 shadow-lg
+      bg-[#0f254a]/95 backdrop-blur-xl border-b border-white/5 shadow-lg
       ${isOpen ? "left-64" : "left-0"}`}
     >
       {/* --- IZQUIERDA: Toggle y Marca --- */}
@@ -120,8 +119,8 @@ export default function Topbar({ sidebarOpen, setSidebarOpen }) {
 
           {/* Avatar y Dropdown */}
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#d63384] to-[#1e3c72] p-[2px] shadow-lg">
-               <div className="h-full w-full rounded-full bg-[#1e3c72] flex items-center justify-center border border-white/20">
+            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#d63384] to-[#0f254a] p-[2px] shadow-lg border border-white/10">
+               <div className="h-full w-full rounded-full bg-[#0f254a] flex items-center justify-center border border-white/10">
                   <span className="font-bold text-sm text-white">{initials}</span>
                </div>
             </div>
