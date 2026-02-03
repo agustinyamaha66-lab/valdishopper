@@ -9,6 +9,7 @@ import {
   DollarSign,
   Users,
   BarChart2,
+  Car, // ✅ NUEVO
   ArrowUpRight,
   ShieldCheck,
 } from "lucide-react";
@@ -19,10 +20,8 @@ export default function Home() {
   const { role, user } = useAuth();
 
   const displayName = user?.email ? user.email.split("@")[0] : "Usuario";
-
   const esFinanzas = ["admin", "jefe_finanzas", "analista_finanzas"].includes(role);
 
-  // Card empresarial reutilizable
   const ActionCard = ({ title, icon: Icon, path, desc, tag }) => (
     <button
       type="button"
@@ -68,33 +67,17 @@ export default function Home() {
     </button>
   );
 
-  // Mini KPI card (placeholder)
-  const Kpi = ({ label, value, sub }) => (
-    <div className="bg-white/90 backdrop-blur border border-slate-200/80 rounded-2xl p-5 shadow-sm">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
-      {sub && <p className="mt-1 text-xs text-slate-600">{sub}</p>}
-    </div>
-  );
-
   return (
     <div className="max-w-7xl mx-auto pb-12 px-3 md:px-6">
-      {/* Fondo sutil y corporativo */}
       <div className="fixed inset-0 -z-10 pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-50" />
         <div className="absolute top-[-12%] right-[-10%] w-[560px] h-[560px] bg-slate-200/40 rounded-full blur-3xl" />
         <div className="absolute bottom-[-18%] left-[-12%] w-[640px] h-[640px] bg-slate-200/30 rounded-full blur-3xl" />
       </div>
 
-      {/* HERO empresarial */}
       <div className="relative overflow-hidden rounded-3xl border border-slate-200 shadow-xl">
         <div className="absolute inset-0">
-          <img
-            src={bannerImg}
-            alt="Valdishopper"
-            className="w-full h-[320px] object-cover object-center"
-          />
-          {/* Overlay executive */}
+          <img src={bannerImg} alt="Valdishopper" className="w-full h-[320px] object-cover object-center" />
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/60 to-slate-950/10" />
           <div className="absolute inset-0 bg-slate-900/15 mix-blend-multiply" />
         </div>
@@ -106,23 +89,16 @@ export default function Home() {
               Centro de Control • Operaciones & Logística
             </div>
 
-            <h1 className="mt-4 text-3xl md:text-5xl font-black text-white tracking-tight">
-              Panel Ejecutivo
-            </h1>
+            <h1 className="mt-4 text-3xl md:text-5xl font-black text-white tracking-tight">Panel Ejecutivo</h1>
 
             <p className="mt-3 text-white/80 text-base md:text-lg">
-              Bienvenido, <span className="font-semibold text-white">{displayName}</span>.{" "}
-              Supervisa la operación, optimiza rutas y gestiona retornos con trazabilidad.
+              Bienvenido, <span className="font-semibold text-white">{displayName}</span>. Supervisa la operación,
+              optimiza rutas y gestiona retornos con trazabilidad.
             </p>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Módulos */}
       <div className="mt-8">
         <div className="flex items-end justify-between gap-4 mb-4">
           <div>
@@ -137,29 +113,31 @@ export default function Home() {
             desc="Monitoreo operacional, flota y eventos en tiempo real."
             icon={Truck}
             path="/transporte"
-            tag="Operación"
+
           />
+
           <ActionCard
             title="Ruteo Inteligente"
             desc="Optimización de rutas, asignación y seguimiento en mapa."
             icon={Map}
             path="/ruteo"
-            tag="Planificación"
+
           />
+
           <ActionCard
             title="Devoluciones"
             desc="Gestión de retornos, estados y control de logística inversa."
             icon={RotateCcw}
             path="/devoluciones"
-            tag="Logística"
+
           />
+
           <ActionCard
             title="Bitácora Operacional"
             desc="Registro de incidencias, evidencias y trazabilidad diaria."
             icon={ClipboardList}
             path="/bitacora-operacion"
-            tag="Control"
-          />
+           />
 
           {esFinanzas && (
             <ActionCard
@@ -167,10 +145,11 @@ export default function Home() {
               desc="Control financiero, rendiciones y visibilidad de gastos."
               icon={DollarSign}
               path="/finanzas"
-              tag="Finanzas"
+
             />
           )}
 
+          {/* ✅ SOLO ADMIN */}
           {role === "admin" && (
             <>
               <ActionCard
@@ -178,14 +157,23 @@ export default function Home() {
                 desc="Administración de accesos, permisos y perfiles."
                 icon={Users}
                 path="/usuarios"
-                tag="Administración"
+
               />
+
+              <ActionCard
+                title="Catastro Patentes"
+                desc="Registro y clasificación CATEX (volumen, categoría, zona)."
+                icon={Car}
+                path="/catastro-patentes"
+
+              />
+
               <ActionCard
                 title="Dashboard de Bitácora"
                 desc="KPIs, métricas y lectura ejecutiva de operación."
                 icon={BarChart2}
                 path="/bitacora-dashboard"
-                tag="Analítica"
+
               />
             </>
           )}

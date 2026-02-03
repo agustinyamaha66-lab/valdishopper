@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import * as XLSX from "xlsx";
+import { Activity } from "lucide-react"; // Icono para la Torre de Control
+import PageHeader from "../ui/PageHeader"; // ✅ Importamos tu componente
 
 // ✅ Toast enterprise
 const ToastNotification = ({ notification, onClose }) => {
@@ -295,7 +297,7 @@ export default function Transporte() {
   // ✅ ESTADOS
   const getStatusKey = (v) => {
     if (v.hora_fin_reparto) return "EN_RUTA";
-    if (v.hora_salida) return "En_ANDEN";
+    if (v.hora_salida) return "EN_ANDEN";
     if (v.hora_llegada) return "EN_SALA";
     return "ESPERANDO";
   };
@@ -318,7 +320,6 @@ export default function Transporte() {
     if (!valor) return "-";
 
     // Si ya viene como texto corto (ej: "14:30" o "14:30:00"), lo mostramos directo
-    // Esto arregla el problema con tu columna 'hora_llegada' que es de tipo TEXTO
     if (typeof valor === "string" && valor.length < 10 && valor.includes(":")) {
       return valor.substring(0, 5); // Asegura mostrar solo HH:MM
     }
@@ -327,7 +328,6 @@ export default function Transporte() {
     try {
       const date = new Date(valor);
       if (isNaN(date.getTime())) {
-         // Si falla el parseo, devolvemos el valor original como string por seguridad
          return String(valor);
       }
       return date.toLocaleTimeString("es-CL", {
@@ -363,18 +363,15 @@ export default function Transporte() {
       <ToastNotification notification={notification} onClose={() => setNotification({ ...notification, visible: false })} />
 
       <div className="max-w-[1400px] mx-auto rounded-2xl border border-slate-200 shadow-xl overflow-hidden bg-white/70 backdrop-blur">
-        <div className="bg-gradient-to-r from-[#0b1f44] via-[#14345f] to-[#0b1f44] text-white px-6 py-5 border-b-4 border-[#d63384]">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/60"></p>
-              <h1 className="text-2xl md:text-3xl font-black tracking-tight">
-                TORRE DE CONTROL <span className="text-[#d63384]">CATEX</span>
-              </h1>
-              <p className="text-xs text-white/70 mt-1">Planificación, monitoreo operativo y mensajería.</p>
-            </div>
 
-            <div className="flex flex-wrap gap-3 items-center">
-              <select
+        {/* ✅ HEADER INTEGRADO CON PageHeader */}
+        <PageHeader
+          title={<>TORRE DE CONTROL <span className="text-[#d63384]">CATEX</span></>}
+          subtitle="Planificación, monitoreo operativo y mensajería"
+          icon={Activity}
+        >
+           {/* Controles movidos aquí dentro */}
+           <select
                 value={filtroHora}
                 onChange={(e) => setFiltroHora(e.target.value)}
                 className="text-[#0b1f44] text-xs font-black p-3 rounded-xl cursor-pointer border border-white/10 outline-none shadow bg-white"
@@ -404,17 +401,15 @@ export default function Transporte() {
 
               <button
                 onClick={fetchViajes}
-                className={`rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest shadow border border-white/10 bg-white/10 hover:bg-white/15 transition flex items-center gap-2 ${
+                className={`rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest shadow border border-white/10 bg-white hover:bg-white/90 transition flex items-center gap-2 ${
                   refreshing ? "opacity-70" : ""
                 }`}
                 title="Actualizar"
               >
-                <span className={refreshing ? "animate-spin" : ""}>↻</span>
+                <span className={`text-[#d63384] font-bold ${refreshing ? "animate-spin" : ""}`}>↻</span>
                 Actualizar
               </button>
-            </div>
-          </div>
-        </div>
+        </PageHeader>
 
         <div className="px-6 py-5 bg-white border-b">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -443,8 +438,8 @@ export default function Transporte() {
               label=" EN ANDEN"
               value={abierto}
               accent="border-blue-600"
-              active={estadoFiltro === "EN ANDEN"}
-              onClick={() => toggleEstado("EN ANDEN")}
+              active={estadoFiltro === "EN_ANDEN"}
+              onClick={() => toggleEstado("EN_ANDEN")}
             />
             <KpiCard
               label="En ruta"

@@ -1,7 +1,9 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Home as HomeIcon,
   Truck,
+  Car,
   Map,
   RotateCcw,
   ClipboardList,
@@ -10,7 +12,12 @@ import {
   Users,
   X,
   PieChart,
-  ShieldCheck
+  ShieldCheck,
+  ChevronDown,
+  ChevronRight,
+  Layers,
+  Settings,
+  TrendingUp
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
@@ -19,42 +26,96 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const { role } = useAuth();
 
   const isOpen = typeof sidebarOpen === "boolean" ? sidebarOpen : true;
-  const toggle =
-    typeof setSidebarOpen === "function"
-      ? () => setSidebarOpen((v) => !v)
-      : () => {};
+  const toggle = typeof setSidebarOpen === "function" ? () => setSidebarOpen((v) => !v) : () => {};
 
+  // Roles
   const esAdmin = role === "admin";
   const esFinanzas = ["admin", "jefe_finanzas", "analista_finanzas"].includes(role);
+  const esRuteo = ["admin", "cco"].includes(role);
 
-  // --- LÓGICA DE CIERRE AUTOMÁTICO ---
   const handleMouseLeave = () => {
-    // Solo cerramos automáticamente en pantallas grandes (Desktop)
-    // En móviles sería molesto porque no hay "mouse leave" real.
     if (window.innerWidth >= 768 && typeof setSidebarOpen === "function") {
       setSidebarOpen(false);
     }
-  };
-
-  // Estilos dinámicos para el link activo
-  const getLinkClass = (path) => {
-    const active = location.pathname === path;
-    return `
-      flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group
-      ${active 
-        ? "bg-[#d63384] text-white shadow-lg shadow-pink-900/20 font-bold" 
-        : "text-blue-100/70 hover:text-white hover:bg-white/10"
-      }
-    `;
   };
 
   const closeOnMobile = () => {
     if (typeof setSidebarOpen === "function") setSidebarOpen(false);
   };
 
+  // --- COMPONENTES INTERNOS PARA ORDEN Y ESTILO ---
+
+  // 1. Link Individual (Hoja del árbol)
+  const NavItem = ({ to, icon: Icon, label }) => {
+    const isActive = location.pathname === to;
+    return (
+      <Link
+        to={to}
+        onClick={closeOnMobile}
+        className={`
+          flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-xs font-bold mb-1
+          ${isActive 
+            ? "bg-[#d63384] text-white shadow-lg shadow-pink-900/20 translate-x-1" 
+            : "text-blue-200/70 hover:text-white hover:bg-white/5 hover:pl-5"
+          }
+        `}
+      >
+        <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
+        <span>{label}</span>
+      </Link>
+    );
+  };
+
+  // 2. Grupo Desplegable (Accordion)
+  const NavGroup = ({ title, icon: Icon, children, activePaths = [] }) => {
+    // Auto-abrir si alguna ruta hija está activa
+    const isActiveGroup = activePaths.includes(location.pathname);
+    const [isExpanded, setIsExpanded] = useState(isActiveGroup);
+
+    // Efecto para abrir automáticamente si navegamos a una ruta interna
+    useEffect(() => {
+      if (isActiveGroup) setIsExpanded(true);
+    }, [location.pathname]);
+
+    return (
+      <div className="mb-2">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className={`
+            w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors duration-200
+            ${isExpanded ? "bg-white/5 text-white" : "text-blue-100/80 hover:bg-white/5 hover:text-white"}
+          `}
+        >
+          <div className="flex items-center gap-3">
+            <Icon size={18} className={isExpanded ? "text-[#d63384]" : "text-slate-400"} />
+            <span className="text-xs font-bold uppercase tracking-wide">{title}</span>
+          </div>
+          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+
+        <div
+          className={`
+            overflow-hidden transition-all duration-300 ease-in-out
+            ${isExpanded ? "max-h-96 opacity-100 mt-1" : "max-h-0 opacity-0"}
+          `}
+        >
+          <div className="pl-3 border-l border-white/10 ml-6 space-y-1">
+            {children}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 3. Título de Sección (Separador visual)
+  const NavSectionTitle = ({ label }) => (
+    <div className="px-6 mt-6 mb-2 text-[9px] font-black text-blue-300/30 uppercase tracking-[0.2em]">
+      {label}
+    </div>
+  );
+
   return (
     <>
-      {/* Overlay mobile (Fondo oscuro al abrir en celular) */}
       <div
         className={`fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300 ${
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -62,9 +123,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
         onClick={toggle}
       />
 
-      {/* SIDEBAR */}
       <aside
-        // Evento para cerrar al quitar el mouse
         onMouseLeave={handleMouseLeave}
         className={`
             fixed top-0 left-0 z-50 h-full w-64 
@@ -73,108 +132,99 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
             ${isOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* Header del Sidebar */}
+        {/* HEADER */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/10 bg-[#0f254a]">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-[#d63384] rounded-lg">
-                <Truck size={18} className="text-white" strokeWidth={3} />
+            <div className="p-1.5 bg-[#d63384] rounded-lg shadow-lg shadow-pink-500/20">
+              <Truck size={18} className="text-white" strokeWidth={3} />
             </div>
             <h1 className="text-lg font-black text-white tracking-tighter leading-none">
-                VALDI<span className="text-[#d63384]">SHOPPER</span>
+              VALDI<span className="text-[#d63384]">SHOPPER</span>
             </h1>
           </div>
-
-          <button
-            type="button"
-            onClick={toggle}
-            className="md:hidden text-gray-400 hover:text-white transition-colors"
-          >
+          <button type="button" onClick={toggle} className="md:hidden text-gray-400 hover:text-white">
             <X size={24} />
           </button>
         </div>
 
-        {/* Navegación con Scroll */}
-        <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-64px)] scrollbar-hide">
+        {/* NAVEGACIÓN */}
+        <nav className="p-3 overflow-y-auto h-[calc(100vh-64px)] scrollbar-hide">
 
-          <Link to="/" onClick={closeOnMobile} className={getLinkClass("/")}>
-            <HomeIcon size={20} strokeWidth={1.5} />
-            <span className="text-sm">Inicio</span>
-          </Link>
+          {/* DASHBOARD PRINCIPAL */}
+          <NavItem to="/" icon={HomeIcon} label="Inicio" />
 
-          {/* SECCIÓN OPERACIONES */}
-          <div className="mt-6 mb-2 px-4 flex items-center gap-2 text-[10px] font-bold text-blue-200/40 uppercase tracking-widest">
-            <span className="w-full h-px bg-white/10"></span>
-            <span>Operaciones</span>
-            <span className="w-full h-px bg-white/10"></span>
-          </div>
+          {/* === SECCIÓN OPERACIONES === */}
+          <NavSectionTitle label="Operaciones" />
 
-          <Link to="/transporte" onClick={closeOnMobile} className={getLinkClass("/transporte")}>
-            <Truck size={20} strokeWidth={1.5} />
-            <span className="text-sm">Torre de Control</span>
-          </Link>
+          {/* GRUPO CATEX */}
+          <NavGroup
+            title="Gestión CATEX"
+            icon={Truck}
+            activePaths={['/transporte', '/devoluciones', '/catastro-patentes']}
+          >
+            <NavItem to="/transporte" icon={Map} label="Torre de Control" />
+            <NavItem to="/devoluciones" icon={RotateCcw} label="Devoluciones" />
+            {esAdmin && (
+              <NavItem to="/catastro-patentes" icon={Car} label="Catastro Patentes" />
+            )}
+          </NavGroup>
 
-          <Link to="/ruteo" onClick={closeOnMobile} className={getLinkClass("/ruteo")}>
-            <Map size={20} strokeWidth={1.5} />
-            <span className="text-sm">Ruteo</span>
-          </Link>
+          {/* GRUPO HD (Solo si tiene permisos) */}
+          {esRuteo && (
+            <NavGroup
+              title="Gestión HD"
+              icon={Layers}
+              activePaths={['/ruteo']}
+            >
+              <NavItem to="/ruteo" icon={Map} label="Ruteador Inteligente" />
+            </NavGroup>
+          )}
 
-          <Link to="/devoluciones" onClick={closeOnMobile} className={getLinkClass("/devoluciones")}>
-            <RotateCcw size={20} strokeWidth={1.5} />
-            <span className="text-sm">Devoluciones</span>
-          </Link>
+          {/* GRUPO GENERAL */}
+          <NavGroup
+            title="Control General"
+            icon={ClipboardList}
+            activePaths={['/bitacora-operacion', '/bitacora-dashboard']}
+          >
+            <NavItem to="/bitacora-operacion" icon={ClipboardList} label="Bitácora Operativa" />
+            {esAdmin && (
+              <NavItem to="/bitacora-dashboard" icon={BarChart2} label="Dashboard Incidencias" />
+            )}
+          </NavGroup>
 
-          <Link to="/bitacora-operacion" onClick={closeOnMobile} className={getLinkClass("/bitacora-operacion")}>
-            <ClipboardList size={20} strokeWidth={1.5} />
-            <span className="text-sm">Bitácora Ops</span>
-          </Link>
+          {/* === SECCIÓN ADMINISTRATIVA === */}
+          {(esFinanzas || esAdmin) && <NavSectionTitle label="Administración" />}
 
-          {/* SECCIÓN FINANZAS */}
+          {/* GRUPO FINANZAS */}
           {esFinanzas && (
-            <>
-              <div className="mt-6 mb-2 px-4 flex items-center gap-2 text-[10px] font-bold text-blue-200/40 uppercase tracking-widest">
-                <span className="w-full h-px bg-white/10"></span>
-                <span>Gestión</span>
-                <span className="w-full h-px bg-white/10"></span>
-              </div>
-
-              <Link to="/finanzas" onClick={closeOnMobile} className={getLinkClass("/finanzas")}>
-                <DollarSign size={20} strokeWidth={1.5} />
-                <span className="text-sm">Costos</span>
-              </Link>
-
-              <Link to="/reportes-financieros" onClick={closeOnMobile} className={getLinkClass("/reportes-financieros")}>
-                <PieChart size={20} strokeWidth={1.5} />
-                <span className="text-sm">Reportes</span>
-              </Link>
-            </>
+            <NavGroup
+              title="Finanzas"
+              icon={TrendingUp}
+              activePaths={['/finanzas', '/reportes-financieros']}
+            >
+              <NavItem to="/finanzas" icon={DollarSign} label="Gestión de Costos" />
+              <NavItem to="/reportes-financieros" icon={PieChart} label="Reportes Financieros" />
+            </NavGroup>
           )}
 
-          {/* SECCIÓN ADMIN */}
+          {/* GRUPO ADMIN */}
           {esAdmin && (
-            <>
-              <div className="mt-6 mb-2 px-4 flex items-center gap-2 text-[10px] font-bold text-blue-200/40 uppercase tracking-widest">
-                <span className="w-full h-px bg-white/10"></span>
-                <span>Admin</span>
-                <span className="w-full h-px bg-white/10"></span>
-              </div>
-
-              <Link to="/bitacora-dashboard" onClick={closeOnMobile} className={getLinkClass("/bitacora-dashboard")}>
-                <BarChart2 size={20} strokeWidth={1.5} />
-                <span className="text-sm">Registro Incidencias</span>
-              </Link>
-
-              <Link to="/usuarios" onClick={closeOnMobile} className={getLinkClass("/usuarios")}>
-                <Users size={20} strokeWidth={1.5} />
-                <span className="text-sm">Usuarios</span>
-              </Link>
-            </>
+            <NavGroup
+              title="Configuración"
+              icon={Settings}
+              activePaths={['/usuarios']}
+            >
+              <NavItem to="/usuarios" icon={Users} label="Usuarios y Permisos" />
+            </NavGroup>
           )}
 
-          {/* Footer decorativo (Opcional) */}
-          <div className="mt-10 px-4">
-            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-900/50 to-transparent border border-white/5 text-center">
-                <ShieldCheck size={24} className="mx-auto text-blue-300 mb-2 opacity-50" />
-                <p className="text-[10px] text-blue-200/60">Agustin W v1.0</p>
+          {/* FOOTER */}
+          <div className="mt-8 px-2 mb-4">
+            <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center backdrop-blur-sm">
+              <ShieldCheck size={24} className="mx-auto text-blue-300/50 mb-2" />
+              <p className="text-[10px] text-blue-200/40 font-mono tracking-wider">
+                SISTEMA INTEGRADO v1.2
+              </p>
             </div>
           </div>
 
