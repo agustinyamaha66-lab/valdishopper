@@ -223,7 +223,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
             <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center backdrop-blur-sm">
               <ShieldCheck size={24} className="mx-auto text-blue-300/50 mb-2" />
               <p className="text-[10px] text-blue-200/40 font-mono tracking-wider">
-                SISTEMA INTEGRADO v1.2
+                Agustin v2
               </p>
             </div>
           </div>
