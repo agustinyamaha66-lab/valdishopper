@@ -16,13 +16,57 @@ import {
 
 // --- DATOS MAESTROS ---
 const localesPorServicio = {
-  LAT: ["120 Temuco", "121 Punta Arenas", "143 Talca", "144 Parral", "146 San Javier", "182 Buin", "276 Lampa", "41 Huechuraba", "42 Curicó", "518 Valparaíso", "54 La Florida 54", "608 Chillán", "611 La Florida 611", "618 Osorno", "627 San Vicente"],
-  HD: ["120 Temuco", "121 Punta Arenas", "58 Viña", "606 Coronel", "608 Chillán", "618 Osorno", "657 Castro", "697 San Fernando", "94 Valdivia", "98 Concepción", "99 Puerto Montt"],
+ LAT: [
+  "41 Huechuraba",
+  "42 Curicó",
+  "54 La Florida ",
+  "71 Ñuñoa",
+  "75 Maipú (Pajaritos)",
+  "76 La Florida",
+  "88 Los Dominicos",
+  "92 La Serena",
+  "94 Valdivia",
+  "98 Concepción",
+  "99 Puerto Montt ",
+  "120 Temuco",
+  "121 Punta Arenas",
+  "143 Talca",
+  "144 Parral",
+  "146 San Javier",
+  "182 Buin",
+  "276 Lampa",
+  "518 Valparaíso",
+  "608 Chillán",
+  "611 La Florida ",
+  "618 Osorno",
+  "627 San Vicente",
+  "647 Maitencillo",
+  "655 Antofagasta",
+  "657 Castro",
+  "658 Puerto Varas",
+  "693 La Pintana",
+  "697 San Fernando",
+  "929 Puerto Montt ",
+  "952 Talcahuano"
+],
+
   SBA: ["171 San Bernardo", "528 Curicó", "569 Talca", "570 Cauquenes", "583 Constitución", "587 Tome"],
   CM: ["159 Macul", "19 Puerto Montt", "513 Talca", "68 Osorno", "903 San Pedro de la Paz", "990 Maipú"],
   "MODELO MIXTO": ["95 La Reina", "45 Maipú", "58 Viña", "99 Puerto Montt", "98 Concepción"],
   "ESTIVALES": ["120 Temuco", "121 Punta Arenas", "58 Viña", "606 Coronel", "608 Chillán", "618 Osorno", "657 Castro", "697 San Fernando", "94 Valdivia", "98 Concepción", "99 Puerto Montt"],
-  CATEX: ["33 Kennedy", "71 La Florida", "75 Maipú", "76 La Reina", "78 Puente Alto", "81 Peñalolén", "88 Tobalaba", "92 La Dehesa"]
+  CATEX: [
+  "33 Calama",
+  "35 Rancagua",
+  "58 Viña",
+  "78 Iquique",
+  "92 La Serena",
+  "94 Valdivia",
+  "99 Puerto Montt",
+  "121 Punta Arenas",
+  "747 Concón",
+  "6004 Temuco",
+  "6010 Chillán"
+]
 }
 
 const initialState = {
