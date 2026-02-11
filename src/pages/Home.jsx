@@ -12,6 +12,7 @@ import {
   Car, // ✅ NUEVO
   ArrowUpRight,
   ShieldCheck,
+  Package, // ✅ NUEVO: Entrega Bolso
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -77,7 +78,11 @@ export default function Home() {
 
       <div className="relative overflow-hidden rounded-3xl border border-slate-200 shadow-xl">
         <div className="absolute inset-0">
-          <img src={bannerImg} alt="Valdishopper" className="w-full h-[320px] object-cover object-center" />
+          <img
+            src={bannerImg}
+            alt="Valdishopper"
+            className="w-full h-[320px] object-cover object-center"
+          />
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/60 to-slate-950/10" />
           <div className="absolute inset-0 bg-slate-900/15 mix-blend-multiply" />
         </div>
@@ -89,11 +94,15 @@ export default function Home() {
               Centro de Control • Operaciones & Logística
             </div>
 
-            <h1 className="mt-4 text-3xl md:text-5xl font-black text-white tracking-tight">Panel Ejecutivo</h1>
+            <h1 className="mt-4 text-3xl md:text-5xl font-black text-white tracking-tight">
+              Panel Ejecutivo
+            </h1>
 
             <p className="mt-3 text-white/80 text-base md:text-lg">
-              Bienvenido, <span className="font-semibold text-white">{displayName}</span>. Supervisa la operación,
-              optimiza rutas y gestiona retornos con trazabilidad.
+              Bienvenido,{" "}
+              <span className="font-semibold text-white">{displayName}</span>.
+              Supervisa la operación, optimiza rutas y gestiona retornos con
+              trazabilidad.
             </p>
           </div>
         </div>
@@ -103,17 +112,19 @@ export default function Home() {
         <div className="flex items-end justify-between gap-4 mb-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900">Módulos</h2>
-            <p className="text-sm text-slate-600">Selecciona un área para gestionar.</p>
+            <p className="text-sm text-slate-600">
+              Selecciona un área para gestionar.
+            </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
           <ActionCard
             title="Torre de Control"
             desc="Monitoreo operacional, flota y eventos en tiempo real."
             icon={Truck}
             path="/transporte"
-
           />
 
           <ActionCard
@@ -121,7 +132,6 @@ export default function Home() {
             desc="Optimización de rutas, asignación y seguimiento en mapa."
             icon={Map}
             path="/ruteo"
-
           />
 
           <ActionCard
@@ -129,7 +139,6 @@ export default function Home() {
             desc="Gestión de retornos, estados y control de logística inversa."
             icon={RotateCcw}
             path="/devoluciones"
-
           />
 
           <ActionCard
@@ -137,7 +146,7 @@ export default function Home() {
             desc="Registro de incidencias, evidencias y trazabilidad diaria."
             icon={ClipboardList}
             path="/bitacora-operacion"
-           />
+          />
 
           {esFinanzas && (
             <ActionCard
@@ -145,7 +154,6 @@ export default function Home() {
               desc="Control financiero, rendiciones y visibilidad de gastos."
               icon={DollarSign}
               path="/finanzas"
-
             />
           )}
 
@@ -157,7 +165,6 @@ export default function Home() {
                 desc="Administración de accesos, permisos y perfiles."
                 icon={Users}
                 path="/usuarios"
-
               />
 
               <ActionCard
@@ -165,7 +172,6 @@ export default function Home() {
                 desc="Registro y clasificación CATEX (volumen, categoría, zona)."
                 icon={Car}
                 path="/catastro-patentes"
-
               />
 
               <ActionCard
@@ -173,12 +179,11 @@ export default function Home() {
                 desc="KPIs, métricas y lectura ejecutiva de operación."
                 icon={BarChart2}
                 path="/bitacora-dashboard"
-
               />
             </>
           )}
         </div>
-      </div>
+      </div>aaaaaaaaaaaaaaaaaaaaaaaaaa ya estoy chato
     </div>
   );
 }

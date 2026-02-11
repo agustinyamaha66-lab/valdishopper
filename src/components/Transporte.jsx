@@ -1,8 +1,17 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import * as XLSX from "xlsx";
-import { Activity } from "lucide-react"; // Icono para la Torre de Control
-import PageHeader from "../ui/PageHeader"; // ✅ Importamos tu componente
+import { Activity } from "lucide-react";
+import PageHeader from "../ui/PageHeader";
+import { Link } from "react-router-dom";
+import ChatCenter from "./ChatCenter";
+
+// ✅ NUEVO: modal de formulario
+import TransporteFormModal from "./TransporteFormModal";
+
+// --- Patentes / Medidas ---
+const PATENTES_TABLE = "control_patentes_catex";
+const PATENTES_ROUTE = "/catastro-patentes";
 
 // ✅ Toast enterprise
 const ToastNotification = ({ notification, onClose }) => {
@@ -15,37 +24,26 @@ const ToastNotification = ({ notification, onClose }) => {
     warning: "bg-amber-100 border-amber-500 text-amber-900",
   };
 
-  const icon = {
-    success: "✅",
-    error: "⛔",
-    info: "ℹ️",
-    warning: "⚠️",
-  };
-
-  const title = {
-    success: "LISTO",
-    error: "ERROR",
-    warning: "ATENCIÓN",
-    info: "INFO",
-  };
+  const icon = { success: "✅", error: "⛔", info: "ℹ️", warning: "⚠️" };
+  const title = { success: "LISTO", error: "ERROR", warning: "ATENCIÓN", info: "INFO" };
 
   return (
-    <div
-      className={`fixed top-24 right-6 z-[9999] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl border-l-4 backdrop-blur-md ${
-        colors[notification.type] || colors.info
-      } min-w-[320px] animate-fade-in-up`}
-    >
-      <span className="text-2xl">{icon[notification.type] || "ℹ️"}</span>
-      <div className="flex-1">
-        <p className="font-black text-[10px] uppercase tracking-[0.25em]">
-          {title[notification.type] || "INFO"}
-        </p>
-        <p className="text-sm font-semibold">{notification.message}</p>
+      <div
+          className={`fixed top-24 right-6 z-[9999] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl border-l-4 backdrop-blur-md ${
+              colors[notification.type] || colors.info
+          } min-w-[320px] animate-fade-in-up`}
+      >
+        <span className="text-2xl">{icon[notification.type] || "ℹ️"}</span>
+        <div className="flex-1">
+          <p className="font-black text-[10px] uppercase tracking-[0.25em]">
+            {title[notification.type] || "INFO"}
+          </p>
+          <p className="text-sm font-semibold">{notification.message}</p>
+        </div>
+        <button onClick={onClose} className="text-slate-500 font-black hover:text-black">
+          ×
+        </button>
       </div>
-      <button onClick={onClose} className="text-slate-500 font-black hover:text-black">
-        ×
-      </button>
-    </div>
   );
 };
 
@@ -60,7 +58,6 @@ export default function Transporte() {
     type: "success",
   });
 
-  // ✅ fecha filtro
   const [fechaFiltro, setFechaFiltro] = useState(new Date().toISOString().split("T")[0]);
 
   // --- FILTROS ---
@@ -68,29 +65,79 @@ export default function Transporte() {
   const [filtroDestino, setFiltroDestino] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("ALL");
   const [diaBloqueado, setDiaBloqueado] = useState(false);
+
   const fileInputRef = useRef(null);
+
+  // ✅ NUEVO: estado modal/form
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingRow, setEditingRow] = useState(null);
+
+  // ✅ NUEVO: estado para edición de comentarios
+  const [editingComment, setEditingComment] = useState(null); // { id, text }
+
+  // --- MAPA MEDIDAS POR PATENTE (desde catastro) ---
+  const [patentesDimMap, setPatentesDimMap] = useState({});
+  const [patentesDimLoading, setPatentesDimLoading] = useState(false);
+
+  const fetchPatentesDim = async () => {
+    setPatentesDimLoading(true);
+    try {
+      const { data, error } = await supabase
+          .from(PATENTES_TABLE)
+          .select("patente,largo,ancho,alto");
+
+      if (error) throw error;
+
+      const map = {};
+      (data || []).forEach((r) => {
+        const key = String(r.patente || "").toUpperCase().trim();
+        if (!key) return;
+        map[key] = { largo: r.largo, ancho: r.ancho, alto: r.alto };
+      });
+      setPatentesDimMap(map);
+    } catch (e) {
+      console.warn("⚠️ No se pudieron cargar medidas de patentes:", e?.message || e);
+    } finally {
+      setPatentesDimLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPatentesDim();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const patenteTieneMedidas = (pat) => {
+    const key = String(pat || "").toUpperCase().trim();
+    const info = patentesDimMap[key];
+    if (!info) return false;
+
+    const largo = Number(info.largo);
+    const ancho = Number(info.ancho);
+    const alto = Number(info.alto);
+
+    return [largo, ancho, alto].every((n) => Number.isFinite(n) && n > 0);
+  };
 
   const showToast = (message, type = "success") => {
     setNotification({ visible: true, message, type });
     setTimeout(() => setNotification((prev) => ({ ...prev, visible: false })), 4000);
   };
 
-  // --- 1) CARGA + REALTIME ---
+  // --- REALTIME + CARGA ---
   useEffect(() => {
     fetchViajes();
 
     const channel = supabase
-      .channel("tabla-transporte")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "asignaciones_transporte" },
-        () => fetchViajes()
-      )
-      .subscribe();
+        .channel("tabla-transporte")
+        .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "asignaciones_transporte" },
+            () => fetchViajes()
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaFiltro]);
 
@@ -98,12 +145,12 @@ export default function Transporte() {
     setRefreshing(true);
 
     const { data, error } = await supabase
-      .from("asignaciones_transporte")
-      .select("*")
-      .eq("fecha", fechaFiltro)
-      .order("hora_citacion", { ascending: true })
-      .order("patente", { ascending: true })
-      .order("numero_vuelta", { ascending: true });
+        .from("asignaciones_transporte")
+        .select("*")
+        .eq("fecha", fechaFiltro)
+        .order("hora_citacion", { ascending: true })
+        .order("patente", { ascending: true })
+        .order("numero_vuelta", { ascending: true });
 
     if (error) {
       showToast("Error al cargar viajes: " + error.message, "error");
@@ -113,94 +160,45 @@ export default function Transporte() {
       setDiaBloqueado(rows.length > 0);
     }
 
-    setTimeout(() => setRefreshing(false), 400);
+    setTimeout(() => setRefreshing(false), 350);
   };
 
-  // ✅ enviar mensaje 1 a 1 (a un chofer)
-  const enviarMensaje = async (id, patente) => {
-    const mensaje = prompt(`Escribe mensaje para el conductor de la patente ${patente}:`);
-    if (!mensaje || mensaje.trim() === "") return;
-
-    try {
-      const { error } = await supabase
-        .from("asignaciones_transporte")
-        .update({ mensaje_admin: mensaje.trim() })
-        .eq("id", id);
-
-      if (error) throw error;
-      showToast("Mensaje enviado correctamente ✅", "success");
-    } catch (e) {
-      showToast("Error al enviar mensaje: " + e.message, "error");
-    }
-  };
-
-  // ✅ ALERTA MASIVA
-  const enviarMensajeMasivo = async () => {
-    const mensaje = prompt(
-      `ALERTA MASIVA (${fechaFiltro})\n\nEscribe el mensaje que le llegará a TODOS los choferes del día:`
-    );
-    if (!mensaje || mensaje.trim() === "") return;
-
-    const ok = window.confirm(
-      `Se enviará este mensaje a TODAS las rutas del día ${fechaFiltro}.\n\n"${mensaje.trim()}"\n\n¿Continuar?`
-    );
-    if (!ok) return;
-
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("asignaciones_transporte")
-        .update({ mensaje_admin: mensaje.trim() })
-        .eq("fecha", fechaFiltro)
-        .select("id");
-
-      if (error) throw error;
-
-      const total = (data || []).length;
-      showToast(`Alerta masiva enviada a ${total} rutas ✅`, "success");
-    } catch (e) {
-      showToast("Error al enviar alerta masiva: " + e.message, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ✅ limpiar día
+  // ✅ LIMPIAR DÍA
   const limpiarDia = async () => {
     const ok = window.confirm(
-      `¿Seguro que quieres BORRAR todas las rutas del día ${fechaFiltro}?\n\nEsto no se puede deshacer.`
+        `¿Seguro que quieres borrar TODAS las rutas del día ${fechaFiltro}?\n\n⚠️ Esta acción NO se puede deshacer.`
     );
     if (!ok) return;
 
     setLoading(true);
     try {
-      const { error } = await supabase.from("asignaciones_transporte").delete().eq("fecha", fechaFiltro);
+      const { error } = await supabase
+          .from("asignaciones_transporte")
+          .delete()
+          .eq("fecha", fechaFiltro);
+
       if (error) throw error;
 
+      showToast("Día limpiado correctamente ✅", "success");
       setViajes([]);
-      setFiltroHora("");
-      setFiltroDestino("");
-      setEstadoFiltro("ALL");
       setDiaBloqueado(false);
-      showToast("Datos del día eliminados. Puedes cargar un Excel nuevo.", "success");
-    } catch (err) {
-      showToast("Error al limpiar: " + err.message, "error");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (e) {
+      showToast("Error al limpiar día: " + e.message, "error");
     } finally {
       setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      fetchViajes();
     }
   };
 
-  // --- 2) CARGA EXCEL ---
+  // --- CARGA EXCEL ---
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (diaBloqueado) {
       showToast(
-        "Este día ya tiene rutas cargadas. Para volver a cargar debes limpiar los datos o cambiar de día.",
-        "warning"
+          "Este día ya tiene rutas cargadas. Para volver a cargar debes limpiar los datos o cambiar de día.",
+          "warning"
       );
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
@@ -226,7 +224,9 @@ export default function Transporte() {
               const totalSeconds = Math.floor(rawHora * 86400);
               const hours = Math.floor(totalSeconds / 3600);
               const minutes = Math.floor((totalSeconds % 3600) / 60);
-              horaFinal = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+              horaFinal = `${hours.toString().padStart(2, "0")}:${minutes
+                  .toString()
+                  .padStart(2, "0")}`;
             } else {
               let texto = rawHora.toString().trim();
               if (texto.length > 5 && texto.includes(":")) texto = texto.substring(0, 5);
@@ -236,7 +236,10 @@ export default function Transporte() {
 
           const local = (row["Ciudad"] || row["ciudad"] || "Sin Ciudad").toString();
           const nodo = (row["Nodo"] || row["nodo"] || "").toString();
-          const patente = (row["Patente"] || row["patente"] || "S/P").toString().trim().toUpperCase();
+          const patente = (row["Patente"] || row["patente"] || "S/P")
+              .toString()
+              .trim()
+              .toUpperCase();
 
           return {
             fecha: fechaFiltro,
@@ -246,6 +249,7 @@ export default function Transporte() {
             hora_citacion: horaFinal,
             numero_vuelta: 1,
             estado: "pendiente",
+            comentario: "", // ✅ NUEVO: inicializar comentario vacío
           };
         });
 
@@ -272,418 +276,493 @@ export default function Transporte() {
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     };
+
     reader.readAsBinaryString(file);
   };
 
-  // --- FILTROS ---
-  const horasDisponibles = useMemo(() => {
-    const horas = viajes.map((v) => v.hora_citacion).filter((h) => h);
-    return [...new Set(horas)].sort();
-  }, [viajes]);
+  const handleExcel = handleFileUpload;
 
-  const viajesBase = useMemo(() => {
-    const q = (filtroDestino || "").toLowerCase().trim();
-    return viajes.filter((v) => {
-      const matchHora = !filtroHora || (v.hora_citacion && v.hora_citacion === filtroHora);
-      const matchDestino =
-        !q ||
-        (v.local && String(v.local).toLowerCase().includes(q)) ||
-        (v.nodo && String(v.nodo).toLowerCase().includes(q)) ||
-        (v.patente && String(v.patente).toLowerCase().includes(q));
-      return matchHora && matchDestino;
-    });
-  }, [viajes, filtroHora, filtroDestino]);
+  // ✅ NUEVO: Guardar comentario
+  const handleSaveComment = async (viajeId, newComment) => {
+    try {
+      const { error } = await supabase
+          .from("asignaciones_transporte")
+          .update({ comentario: newComment })
+          .eq("id", viajeId);
 
-  // ✅ ESTADOS
-  const getStatusKey = (v) => {
+      if (error) throw error;
+
+      showToast("Comentario guardado ✅", "success");
+      setEditingComment(null);
+      fetchViajes();
+    } catch (e) {
+      showToast("Error al guardar comentario: " + e.message, "error");
+    }
+  };
+
+  // ---------------- HELPERS / ESTADO OPERATIVO ----------------
+  const markedSala = (v) => !!(v.hora_llegada || v.gps_llegada_lat || v.gps_llegada_lon);
+  const markedFuera = (v) => !!v.hora_salida;
+  const markedFin = (v) => !!v.hora_fin_reparto;
+
+  const getEstadoOperativo = (v) => {
     if (v.hora_fin_reparto) return "EN_RUTA";
     if (v.hora_salida) return "EN_ANDEN";
-    if (v.hora_llegada) return "EN_SALA";
-    return "ESPERANDO";
+    if (v.hora_llegada) return "EN_LOCAL";
+    return "PENDIENTE";
   };
 
-  const getStatus = (v) => {
-    const key = getStatusKey(v);
-    if (key === "EN_RUTA") return { label: "EN RUTA", color: "bg-emerald-600 text-white" };
-    if (key === "EN_ANDEN") return { label: "EN_ANDEN", color: "bg-blue-600 text-white" };
-    if (key === "EN_SALA") return { label: "EN SALA", color: "bg-amber-300 text-slate-900" };
-    return { label: "ESPERANDO", color: "bg-slate-100 text-slate-600" };
+  const openMaps = (lat, lon) => {
+    if (!lat || !lon) return;
+    const url = `https://www.google.com/maps?q=${lat},${lon}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  const viajesFiltrados = useMemo(() => {
-    if (estadoFiltro === "ALL") return viajesBase;
-    return viajesBase.filter((v) => getStatusKey(v) === estadoFiltro);
-  }, [viajesBase, estadoFiltro]);
+  const formatHora = (h) => {
+    if (!h) return "";
+    const s = String(h).trim();
+    if (/^\d{2}:\d{2}(:\d{2})?$/.test(s)) return s.slice(0, 5);
 
-  // 🔥🔥🔥 FUNCIÓN CORREGIDA PARA SOPORTAR TEXTO Y FECHAS 🔥🔥🔥
-  const formatTime = (valor) => {
-    if (!valor) return "-";
-
-    // Si ya viene como texto corto (ej: "14:30" o "14:30:00"), lo mostramos directo
-    if (typeof valor === "string" && valor.length < 10 && valor.includes(":")) {
-      return valor.substring(0, 5); // Asegura mostrar solo HH:MM
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
-
-    // Si parece una fecha ISO larga, intentamos parsearla
-    try {
-      const date = new Date(valor);
-      if (isNaN(date.getTime())) {
-         return String(valor);
-      }
-      return date.toLocaleTimeString("es-CL", {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "America/Santiago",
-      });
-    } catch (e) {
-      return String(valor);
-    }
+    return s;
   };
 
-  const totalRutas = viajesBase.length;
-  const esperando = viajesBase.filter((v) => getStatusKey(v) === "ESPERANDO").length;
-  const enSala = viajesBase.filter((v) => getStatusKey(v) === "EN_SALA").length;
-  const abierto = viajesBase.filter((v) => getStatusKey(v) === "EN_ANDEN").length;
-  const enRuta = viajesBase.filter((v) => getStatusKey(v) === "EN_RUTA").length;
+  const excelDisabled = diaBloqueado || loading;
 
-  const uploadDisabled = loading || diaBloqueado;
+  // Dropdown horas únicas (08:00, 09:00, etc.)
+  const horasDisponibles = useMemo(() => {
+    const setH = new Set();
+    (viajes || []).forEach((v) => {
+      const hhmm = String(v.hora_citacion || "").slice(0, 5);
+      if (/^\d{2}:\d{2}$/.test(hhmm)) setH.add(hhmm);
+    });
+    return Array.from(setH).sort();
+  }, [viajes]);
 
-  const toggleEstado = (key) => {
-    setEstadoFiltro((prev) => (prev === key ? "ALL" : key));
+  // ---------------- KPIs ----------------
+  const kpis = useMemo(() => {
+    const total = viajes.length;
+    const pendiente = viajes.filter((v) => getEstadoOperativo(v) === "PENDIENTE").length;
+    const enLocal = viajes.filter((v) => getEstadoOperativo(v) === "EN_LOCAL").length;
+    const enAnden = viajes.filter((v) => getEstadoOperativo(v) === "EN_ANDEN").length;
+    const enRuta = viajes.filter((v) => getEstadoOperativo(v) === "EN_RUTA").length;
+    return { total, pendiente, enLocal, enAnden, enRuta };
+  }, [viajes]);
+
+  // ---------------- LISTA FILTRADA ----------------
+  const listaFiltrada = useMemo(() => {
+    return viajes.filter((v) => {
+      const okHora = !filtroHora || String(v.hora_citacion || "").startsWith(filtroHora);
+
+      const texto = (filtroDestino || "").toLowerCase();
+      const okDestino =
+          !texto ||
+          String(v.local || "").toLowerCase().includes(texto) ||
+          String(v.nodo || "").toLowerCase().includes(texto) ||
+          String(v.patente || "").toLowerCase().includes(texto);
+
+      const estadoOp = getEstadoOperativo(v);
+      const okEstado = estadoFiltro === "ALL" || estadoOp === estadoFiltro;
+
+      return okHora && okDestino && okEstado;
+    });
+  }, [viajes, filtroHora, filtroDestino, estadoFiltro]);
+
+  const handleSubmitRutaManual = async (payload) => {
+    const key = `${payload.fecha}|${payload.patente}|${payload.hora_citacion}|${payload.nodo || ""}`;
+
+    const dup = (viajes || []).some((v) => {
+      const k = `${v.fecha}|${String(v.patente || "").toUpperCase().trim()}|${String(v.hora_citacion || "").slice(0, 5)}|${String(v.nodo || "")}`;
+      return k === key;
+    });
+
+    if (dup) throw new Error("Ya existe una ruta con esa patente/hora/nodo para este día.");
+
+    const { error } = await supabase.from("asignaciones_transporte").insert([payload]);
+    if (error) throw error;
+
+    showToast("Ruta agregada ✅", "success");
+    fetchViajes();
   };
 
+
+  // ---------------- UI ----------------
   return (
-    <div className="relative min-h-screen p-6 font-sans">
-      <div className="absolute inset-0 -z-10 pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-50" />
-        <div className="absolute top-[-18%] right-[-14%] w-[620px] h-[620px] bg-slate-200/45 rounded-full blur-3xl" />
-        <div className="absolute bottom-[-18%] left-[-14%] w-[640px] h-[640px] bg-slate-200/35 rounded-full blur-3xl" />
-      </div>
+      <div className="min-h-screen bg-slate-50">
+        <ToastNotification
+            notification={notification}
+            onClose={() => setNotification((p) => ({ ...p, visible: false }))}
+        />
 
-      <ToastNotification notification={notification} onClose={() => setNotification({ ...notification, visible: false })} />
+        <PageHeader title="Transporte" subtitle="Planificación / Vista operativa" icon={Activity} />
 
-      <div className="max-w-[1400px] mx-auto rounded-2xl border border-slate-200 shadow-xl overflow-hidden bg-white/70 backdrop-blur">
+        <div className="px-4 md:px-8 pb-10">
+          {/* TOP ACTIONS */}
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 md:p-6">
+            <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 justify-between">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">
+                  Fecha
+                </span>
+                  <input
+                      type="date"
+                      value={fechaFiltro}
+                      onChange={(e) => setFechaFiltro(e.target.value)}
+                      className="px-3 py-2 rounded-2xl border border-slate-200 font-bold text-sm"
+                  />
+                </div>
 
-        {/* ✅ HEADER INTEGRADO CON PageHeader */}
-        <PageHeader
-          title={<>TORRE DE CONTROL <span className="text-[#d63384]">CATEX</span></>}
-          subtitle="Planificación, monitoreo operativo y mensajería"
-          icon={Activity}
-        >
-           {/* Controles movidos aquí dentro */}
-           <select
-                value={filtroHora}
-                onChange={(e) => setFiltroHora(e.target.value)}
-                className="text-[#0b1f44] text-xs font-black p-3 rounded-xl cursor-pointer border border-white/10 outline-none shadow bg-white"
-              >
-                <option value="">🕒 TODAS LAS HORAS</option>
-                {horasDisponibles.map((h) => (
-                  <option key={h} value={h}>
-                    {h} hrs
-                  </option>
-                ))}
-              </select>
+                <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">
+                  Excel
+                </span>
 
-              <input
-                type="text"
-                placeholder="🔎 Buscar destino / nodo / patente..."
-                value={filtroDestino}
-                onChange={(e) => setFiltroDestino(e.target.value)}
-                className="text-[#0b1f44] text-xs font-black p-3 rounded-xl w-64 shadow bg-white outline-none focus:ring-2 focus:ring-[#d63384]"
-              />
+                  <label
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-200 bg-white font-black text-xs
+                  ${excelDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-slate-50"}`}
+                      title={excelDisabled ? "Excel bloqueado (ya hay rutas cargadas)" : "Cargar Excel"}
+                  >
+                    Cargar lista
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={handleExcel}
+                        className="hidden"
+                        disabled={excelDisabled}
+                    />
+                  </label>
+                </div>
 
-              <input
-                type="date"
-                value={fechaFiltro}
-                onChange={(e) => setFechaFiltro(e.target.value)}
-                className="text-[#0b1f44] font-black p-3 rounded-xl cursor-pointer shadow bg-white text-sm"
-              />
-
-              <button
-                onClick={fetchViajes}
-                className={`rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest shadow border border-white/10 bg-white hover:bg-white/90 transition flex items-center gap-2 ${
-                  refreshing ? "opacity-70" : ""
-                }`}
-                title="Actualizar"
-              >
-                <span className={`text-[#d63384] font-bold ${refreshing ? "animate-spin" : ""}`}>↻</span>
-                Actualizar
-              </button>
-        </PageHeader>
-
-        <div className="px-6 py-5 bg-white border-b">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <KpiCard
-              label="Rutas"
-              value={totalRutas}
-              accent="border-[#14345f]"
-              active={estadoFiltro === "ALL"}
-              onClick={() => setEstadoFiltro("ALL")}
-            />
-            <KpiCard
-              label="Pendiente"
-              value={esperando}
-              accent="border-slate-300"
-              active={estadoFiltro === "ESPERANDO"}
-              onClick={() => toggleEstado("ESPERANDO")}
-            />
-            <KpiCard
-              label="En sala"
-              value={enSala}
-              accent="border-amber-400"
-              active={estadoFiltro === "EN_SALA"}
-              onClick={() => toggleEstado("EN_SALA")}
-            />
-            <KpiCard
-              label=" EN ANDEN"
-              value={abierto}
-              accent="border-blue-600"
-              active={estadoFiltro === "EN_ANDEN"}
-              onClick={() => toggleEstado("EN_ANDEN")}
-            />
-            <KpiCard
-              label="En ruta"
-              value={enRuta}
-              accent="border-emerald-600"
-              active={estadoFiltro === "EN_RUTA"}
-              onClick={() => toggleEstado("EN_RUTA")}
-            />
-          </div>
-
-          <div className="mt-3 text-[11px] text-slate-600 font-semibold">
-            Filtro Estado:{" "}
-            <span className="font-black text-slate-900">
-              {estadoFiltro === "ALL"
-                ? "TODOS"
-                : estadoFiltro === "ESPERANDO"
-                ? "ESPERANDO"
-                : estadoFiltro === "EN_ANDEN"
-                ? "EN ANDEN"
-                : estadoFiltro === "ABIERTO"
-                ? "ABIERTO"
-                : "EN RUTA"}
-            </span>
-            {estadoFiltro !== "ALL" && (
-              <button
-                onClick={() => setEstadoFiltro("ALL")}
-                className="ml-3 text-[10px] font-black uppercase tracking-widest text-blue-700 hover:underline"
-              >
-                limpiar filtro
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="px-6 py-5 bg-white border-b">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 flex flex-col gap-4">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Planificación</p>
-                <h3 className="font-black text-[#14345f] text-lg">CARGA DE RUTAS (1 Excel por día)</h3>
-                <p className="text-xs text-slate-600 mt-1">
-                  Para volver a cargar, usa <b>Limpiar día</b> o cambia la fecha.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3 items-center">
+                {/* ✅ NUEVO BOTÓN: abrir modal */}
                 <button
-                  onClick={enviarMensajeMasivo}
-                  disabled={loading || viajes.length === 0}
-                  className={`rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest shadow border transition active:scale-95
-                    ${
-                      loading || viajes.length === 0
-                        ? "opacity-50 pointer-events-none bg-amber-100 text-amber-900 border-amber-200"
-                        : "bg-amber-400 hover:bg-amber-500 text-slate-900 border-amber-300"
-                    }`}
+                    type="button"
+                    onClick={() => {
+                      setEditingRow(null);
+                      setFormOpen(true);
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 font-black text-xs"
                 >
-                  📣 Alerta masiva
+                  ➕ Agregar patente
                 </button>
 
                 <button
-                  onClick={limpiarDia}
-                  disabled={loading}
-                  className={`rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest shadow border transition active:scale-95
-                    ${
-                      loading
-                        ? "opacity-50 pointer-events-none bg-rose-50 text-rose-800 border-rose-200"
-                        : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
-                    }`}
+                    type="button"
+                    onClick={limpiarDia}
+                    disabled={loading || viajes.length === 0}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 font-black text-xs hover:bg-rose-100 disabled:opacity-50"
+                    title="Borrar todas las rutas del día"
                 >
                   🧹 Limpiar día
                 </button>
 
-                <label
-                  className={`rounded-xl px-5 py-3 text-xs font-black uppercase tracking-widest shadow transition active:scale-95 flex items-center gap-2 cursor-pointer border
-                    ${
-                      uploadDisabled
-                        ? "opacity-50 pointer-events-none bg-slate-200 text-slate-600 border-slate-300"
-                        : "bg-[#d63384] hover:bg-pink-600 text-white border-pink-300/40"
-                    }`}
+                <button
+                    type="button"
+                    onClick={fetchViajes}
+                    disabled={refreshing}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 font-black text-xs disabled:opacity-50"
                 >
-                  {loading ? (
-                    <>
-                      <span className="animate-spin">↻</span> Procesando...
-                    </>
-                  ) : diaBloqueado ? (
-                    <>🔒 Excel bloqueado</>
-                  ) : (
-                    <>⬆️ Cargar Excel</>
-                  )}
-
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx, .xls"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    disabled={uploadDisabled}
-                  />
-                </label>
+                  🔄 Refrescar
+                </button>
               </div>
-            </div>
 
-            {diaBloqueado && (
-              <div className="text-[12px] text-amber-900 bg-amber-100/60 border border-amber-200 rounded-xl px-4 py-3">
-                🔒 Ya hay rutas cargadas para <b>{fechaFiltro}</b>. Para cargar otro Excel:{" "}
-                <b>Limpiar día</b> o <b>cambiar fecha</b>.
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white">
-          <div className="px-6 py-4 bg-slate-50 border-b flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <h6 className="font-black text-[#14345f] uppercase text-sm tracking-widest">Vista operativa</h6>
-              <span className="bg-blue-100 text-blue-900 text-[10px] font-black px-2 py-1 rounded-full border border-blue-200">
-                {viajesFiltrados.length} rutas
-              </span>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-[#0b1f44] text-white uppercase font-black text-[11px] tracking-widest">
-                <tr>
-                  <th className="p-4 whitespace-nowrap">Patente</th>
-                  <th className="p-4 whitespace-nowrap">Citación</th>
-                  <th className="p-4 min-w-[240px]">Destino / Nodo</th>
-                  <th className="p-4 text-center whitespace-nowrap">Vuelta</th>
-                  <th className="p-4 text-center whitespace-nowrap">Llegada (Sala)</th>
-                  <th className="p-4 text-center whitespace-nowrap">anden</th>
-                  <th className="p-4 text-center whitespace-nowrap">En Ruta</th>
-                  <th className="p-4 text-center whitespace-nowrap">Estado</th>
-                  <th className="p-4 text-center whitespace-nowrap">Acción</th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100">
-                {viajesFiltrados.length === 0 ? (
-                  <tr>
-                    <td colSpan="9" className="p-12 text-center text-slate-400">
-                      <p className="font-black text-lg">No hay rutas coincidentes</p>
-                      <p className="text-xs mt-1">
-                        Prueba cambiando filtros o carga un Excel para el día seleccionado.
-                      </p>
-                    </td>
-                  </tr>
+              <div className="text-xs font-bold text-slate-500">
+                {diaBloqueado ? (
+                    <span className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800">
+                  🔒 Excel bloqueado (ya hay rutas cargadas)
+                </span>
                 ) : (
-                  viajesFiltrados.map((viaje) => {
-                    const st = getStatus(viaje);
-                    return (
-                      <tr key={viaje.id} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="p-4">
-                          <div className="font-black text-[#14345f] text-lg leading-none">{viaje.patente}</div>
-                        </td>
-
-                        <td className="p-4">
-                          <span className="inline-flex items-center bg-slate-100 text-slate-800 font-mono font-black px-3 py-1 rounded-xl border border-slate-200">
-                            {viaje.hora_citacion}
-                          </span>
-                        </td>
-
-                        <td className="p-4">
-                          <div className="font-bold text-slate-900 leading-tight">{viaje.local}</div>
-                          <div className="text-[10px] text-slate-500 font-black uppercase mt-1 tracking-widest">
-                            Nodo: {viaje.nodo}
-                          </div>
-                        </td>
-
-                        <td className="p-4 text-center">
-                          <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-xl text-xs font-black border border-slate-200">
-                            #{viaje.numero_vuelta}
-                          </span>
-                        </td>
-
-                        <td className="p-4 text-center font-mono text-slate-700">
-                          {viaje.hora_llegada ? (
-                            <div className="flex flex-col items-center">
-                              <span className="font-black text-slate-900">{formatTime(viaje.hora_llegada)}</span>
-                              {viaje.gps_llegada_lat && viaje.gps_llegada_lon && (
-                                <a
-                                  href={`https://www.google.com/maps?q=${viaje.gps_llegada_lat},${viaje.gps_llegada_lon}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-2 inline-flex items-center gap-1 text-[10px] text-blue-700 font-black hover:underline bg-blue-50 px-3 py-1 rounded-full border border-blue-200"
-                                >
-                                  📍 Ver mapa
-                                </a>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-300">-</span>
-                          )}
-                        </td>
-
-                        <td className="p-4 text-center font-mono text-blue-700 font-black">{formatTime(viaje.hora_salida)}</td>
-
-                        <td className="p-4 text-center font-mono text-emerald-700 font-black">{formatTime(viaje.hora_fin_reparto)}</td>
-
-                        <td className="p-4 text-center">
-                          <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black shadow-sm ${st.color}`}>
-                            {st.label}
-                          </span>
-                        </td>
-
-                        <td className="p-4 text-center">
-                          <button
-                            onClick={() => enviarMensaje(viaje.id, viaje.patente)}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest border border-orange-200 bg-white hover:bg-orange-50 text-orange-600 hover:text-orange-700 shadow-sm transition active:scale-95"
-                            title="Enviar mensaje al conductor"
-                          >
-                            📩 Avisar
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                    <span className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+                  ✅ Listo para cargar Excel
+                </span>
                 )}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
+
+          {/* KPIs */}
+          <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3">
+            <KpiCard label="Total" value={kpis.total} accent="border-slate-900" active={estadoFiltro === "ALL"} onClick={() => setEstadoFiltro("ALL")} />
+            <KpiCard label="Pendiente" value={kpis.pendiente} accent="border-slate-400" active={estadoFiltro === "PENDIENTE"} onClick={() => setEstadoFiltro("PENDIENTE")} />
+            <KpiCard label="En Local" value={kpis.enLocal} accent="border-orange-500" active={estadoFiltro === "EN_LOCAL"} onClick={() => setEstadoFiltro("EN_LOCAL")} />
+            <KpiCard label="En Andén" value={kpis.enAnden} accent="border-blue-500" active={estadoFiltro === "EN_ANDEN"} onClick={() => setEstadoFiltro("EN_ANDEN")} />
+            <KpiCard label="En Ruta" value={kpis.enRuta} accent="border-emerald-500" active={estadoFiltro === "EN_RUTA"} onClick={() => setEstadoFiltro("EN_RUTA")} />
+          </div>
+
+          {/* FILTROS */}
+          <div className="mt-5 bg-white rounded-3xl shadow-sm border border-slate-200 p-4 md:p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">
+                  Filtrar por hora citación
+                </p>
+                <select
+                    value={filtroHora}
+                    onChange={(e) => setFiltroHora(e.target.value)}
+                    className="mt-2 w-full px-4 py-3 rounded-2xl border border-slate-200 font-bold"
+                >
+                  <option value="">TODAS</option>
+                  {horasDisponibles.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">
+                  Buscar por local / nodo / patente
+                </p>
+                <input
+                    value={filtroDestino}
+                    onChange={(e) => setFiltroDestino(e.target.value)}
+                    placeholder="Ej: Valdivia / 94 / FSLF70..."
+                    className="mt-2 w-full px-4 py-3 rounded-2xl border border-slate-200 font-bold"
+                />
+              </div>
+
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">
+                  Estado
+                </p>
+                <select
+                    value={estadoFiltro}
+                    onChange={(e) => setEstadoFiltro(e.target.value)}
+                    className="mt-2 w-full px-4 py-3 rounded-2xl border border-slate-200 font-bold"
+                >
+                  <option value="ALL">TODOS</option>
+                  <option value="PENDIENTE">PENDIENTE</option>
+                  <option value="EN_LOCAL">EN LOCAL</option>
+                  <option value="EN_ANDEN">EN ANDÉN</option>
+                  <option value="EN_RUTA">EN RUTA</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* TABLA */}
+          <div className="mt-6 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">
+                    Vista operativa
+                  </p>
+                  <p className="font-black text-slate-900">{listaFiltrada.length} rutas</p>
+                </div>
+                <div className="text-xs font-bold text-slate-500">{refreshing ? "Actualizando..." : ""}</div>
+              </div>
+            </div>
+
+            <div className="overflow-auto">
+              <table className="min-w-[1200px] w-full">
+                <thead className="bg-slate-900 text-white">
+                <tr className="text-left text-[10px] font-black uppercase tracking-[0.25em]">
+                  <th className="px-5 py-3">Patente</th>
+                  <th className="px-5 py-3">Citación</th>
+                  <th className="px-5 py-3">Local / Nodo</th>
+                  <th className="px-5 py-3">Vuelta</th>
+                  <th className="px-5 py-3">Local</th>
+                  <th className="px-5 py-3">Andén</th>
+                  <th className="px-5 py-3">Ruta</th>
+                  <th className="px-5 py-3">Estado</th>
+                  <th className="px-5 py-3">Comentario</th> {/* ✅ NUEVA COLUMNA */}
+                </tr>
+                </thead>
+
+                <tbody>
+                {listaFiltrada.length === 0 ? (
+                    <tr>
+                      <td className="px-5 py-10 text-center text-slate-500 font-semibold" colSpan={9}>
+                        No hay rutas para mostrar.
+                      </td>
+                    </tr>
+                ) : (
+                    listaFiltrada.map((viaje) => (
+                        <tr key={viaje.id} className="border-t border-slate-100 hover:bg-slate-50">
+                          <td className="px-5 py-4">
+                            <div className="flex flex-col leading-tight">
+                              <span className="font-black text-slate-900">{viaje.patente}</span>
+
+                              <Link
+                                  to={`${PATENTES_ROUTE}?patente=${encodeURIComponent(viaje.patente || "")}`}
+                                  className={`mt-1 inline-flex w-fit items-center gap-2 px-2.5 py-1 rounded-full border text-[11px] font-black
+                              ${
+                                      patenteTieneMedidas(viaje.patente)
+                                          ? "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
+                                          : "bg-rose-50 border-rose-200 text-rose-800 hover:bg-rose-100"
+                                  }
+                              ${patentesDimLoading ? "opacity-60 pointer-events-none" : ""}`}
+                                  title="Abrir catastro de patentes para editar medidas"
+                              >
+                                {patenteTieneMedidas(viaje.patente) ? "✅ Medidas OK" : "⚠️ Faltan medidas"}
+                              </Link>
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 text-slate-900 font-black text-xs">
+                          {String(viaje.hora_citacion || "").slice(0, 5)}
+                        </span>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="font-black text-slate-900">{viaje.local || "—"}</div>
+                            <div className="text-xs text-slate-500 font-bold">NODO: {viaje.nodo || "—"}</div>
+                          </td>
+
+                          <td className="px-5 py-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 text-slate-900 font-black text-xs">
+                          #{viaje.numero_vuelta || 1}
+                        </span>
+                          </td>
+
+                          <td className="px-5 py-4 text-slate-700 font-bold">
+                            {markedSala(viaje) ? (
+                                <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 text-slate-900 font-black text-xs">
+                              {formatHora(viaje.hora_llegada) || "EN LOCAL"}
+                            </span>
+
+                                  {viaje.gps_llegada_lat && viaje.gps_llegada_lon && (
+                                      <button
+                                          onClick={() => openMaps(viaje.gps_llegada_lat, viaje.gps_llegada_lon)}
+                                          title="Ver ubicación de llegada"
+                                          className="text-blue-600 hover:text-blue-800 hover:scale-110 transition"
+                                      >
+                                        📍
+                                      </button>
+                                  )}
+                                </div>
+                            ) : (
+                                "—"
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4 text-slate-700 font-bold">
+                            {markedFuera(viaje) ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-900 font-black text-xs">
+                            {formatHora(viaje.hora_salida)}
+                          </span>
+                            ) : (
+                                "—"
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4 text-slate-700 font-bold">
+                            {markedFin(viaje) ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-900 font-black text-xs">
+                            {formatHora(viaje.hora_fin_reparto)}
+                          </span>
+                            ) : (
+                                "—"
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 text-slate-900 font-black text-xs">
+                          {getEstadoOperativo(viaje).replace("_", " ")}
+                        </span>
+                          </td>
+
+                          {/* ✅ NUEVA CELDA: Comentario editable */}
+                          <td className="px-5 py-4">
+                            {editingComment?.id === viaje.id ? (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                      type="text"
+                                      value={editingComment.text}
+                                      onChange={(e) =>
+                                          setEditingComment({ ...editingComment, text: e.target.value })
+                                      }
+                                      className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                      placeholder="Escribe un comentario..."
+                                      autoFocus
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          handleSaveComment(viaje.id, editingComment.text);
+                                        }
+                                        if (e.key === "Escape") {
+                                          setEditingComment(null);
+                                        }
+                                      }}
+                                  />
+                                  <button
+                                      onClick={() => handleSaveComment(viaje.id, editingComment.text)}
+                                      className="px-3 py-2 rounded-xl bg-emerald-500 text-white font-black text-xs hover:bg-emerald-600"
+                                      title="Guardar comentario"
+                                  >
+                                    ✓
+                                  </button>
+                                  <button
+                                      onClick={() => setEditingComment(null)}
+                                      className="px-3 py-2 rounded-xl bg-slate-200 text-slate-700 font-black text-xs hover:bg-slate-300"
+                                      title="Cancelar"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                            ) : (
+                                <div
+                                    onClick={() =>
+                                        setEditingComment({ id: viaje.id, text: viaje.comentario || "" })
+                                    }
+                                    className="cursor-pointer px-3 py-2 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors min-h-[38px] flex items-center"
+                                    title="Click para editar comentario"
+                                >
+                                  {viaje.comentario ? (
+                                      <span className="text-sm font-semibold text-slate-900">
+                                    {viaje.comentario}
+                                  </span>
+                                  ) : (
+                                      <span className="text-sm text-slate-400 font-semibold italic">
+                                    Sin comentario
+                                  </span>
+                                  )}
+                                </div>
+                            )}
+                          </td>
+                        </tr>
+                    ))
+                )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ✅ NUEVO: Modal */}
+          <TransporteFormModal
+              open={formOpen}
+              onClose={() => setFormOpen(false)}
+              onSubmit={handleSubmitRutaManual}
+              fecha={fechaFiltro}
+              defaultValues={editingRow}
+          />
+
+          {/* Centro de chats (botón flotante) */}
+          <ChatCenter />
         </div>
       </div>
-    </div>
   );
 }
 
 function KpiCard({ label, value, accent, active, onClick }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`text-left bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-l-4 ${accent}
+      <button
+          type="button"
+          onClick={onClick}
+          className={`text-left bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-l-4 ${accent}
         transition-all duration-150 cursor-pointer select-none
         hover:shadow-md hover:-translate-y-[1px]
-        active:translate-y-0 active:shadow-sm
-        ${active ? "ring-2 ring-[#d63384] shadow-md" : ""}
-      `}
-    >
-      <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em]">{label}</div>
-      <div className="text-3xl font-black text-slate-900 mt-1">{value}</div>
-      <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-        {active ? "Activo (click para quitar)" : "Click para filtrar"}
-      </div>
-    </button>
+        ${active ? "ring-2 ring-slate-900/10" : ""}`}
+      >
+        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">{label}</p>
+        <p className="text-3xl font-black text-slate-900 mt-1">{value}</p>
+      </button>
   );
 }

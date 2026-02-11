@@ -328,7 +328,7 @@ export default function DashboardBitacora() {
       <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
           <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
               <div className="relative group w-full sm:w-auto">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase absolute -top-2 left-2 bg-white px-1">Buscar SG</label>
+                  <label className="text-[7px] font-bold text-slate-400 uppercase absolute -top-2 left-2 bg-white px-1">Buscar SG</label>
                   <div className="relative">
                       <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
                       <input type="text" placeholder="Ej: 994123" value={filterSg} onChange={(e) => setFilterSg(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-[#1e3c72] outline-none focus:ring-2 focus:ring-[#1e3c72] w-full sm:w-48 transition-all" />
@@ -337,7 +337,7 @@ export default function DashboardBitacora() {
 
               {(dashTab === 'DIARIA' || dashTab === 'REGISTROS') && (
                   <div className="relative group w-full sm:w-auto">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase absolute -top-2 left-2 bg-white px-1">Fecha Análisis</label>
+                      <label className="text-[7px] font-bold text-slate-400 uppercase absolute -top-2 left-2 bg-white px-1">Fecha Análisis</label>
                       <div className="relative">
                           <CalendarDays className="absolute left-3 top-2.5 text-slate-400" size={16} />
                           <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1e3c72] w-full sm:w-auto transition-all cursor-pointer" />
@@ -346,7 +346,7 @@ export default function DashboardBitacora() {
               )}
               {dashTab === 'SEMANAL' && (
                   <div className="relative group w-full sm:w-auto">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase absolute -top-2 left-2 bg-white px-1">Semana</label>
+                      <label className="text-[7px] font-bold text-slate-400 uppercase absolute -top-2 left-2 bg-white px-1">Semana</label>
                       <div className="relative">
                           <Calendar className="absolute left-3 top-2.5 text-slate-400" size={16} />
                           <select value={filterWeek} onChange={(e) => setFilterWeek(e.target.value)} className="pl-10 pr-8 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1e3c72] w-full appearance-none cursor-pointer">
@@ -357,7 +357,7 @@ export default function DashboardBitacora() {
               )}
               {dashTab === 'MENSUAL' && (
                   <div className="relative group w-full sm:w-auto">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase absolute -top-2 left-2 bg-white px-1">Mes</label>
+                      <label className="text-[7px] font-bold text-slate-400 uppercase absolute -top-2 left-2 bg-white px-1">Mes</label>
                       <div className="relative">
                           <BarChart3 className="absolute left-3 top-2.5 text-slate-400" size={16} />
                           <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="pl-10 pr-8 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#1e3c72] w-full appearance-none cursor-pointer">
