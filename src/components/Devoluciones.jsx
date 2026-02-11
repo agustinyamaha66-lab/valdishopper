@@ -14,6 +14,8 @@ import {
     ChevronLeft,
     ChevronRight,
     Images,
+    Calendar,
+    Filter,
 } from "lucide-react";
 
 function safeParseJSONList(v) {
@@ -44,6 +46,19 @@ export default function Devoluciones() {
     const [registros, setRegistros] = useState([]);
     const [busqueda, setBusqueda] = useState("");
     const [loading, setLoading] = useState(false);
+
+    // Estados para filtros
+    const [filtroStatus, setFiltroStatus] = useState("todos"); // 'todos', 'pendiente', 'confirmada'
+
+    // Inicializar fechas con el día de hoy
+    const hoy = new Date().toISOString().split('T')[0];
+    const [fechaInicio, setFechaInicio] = useState(hoy);
+    const [fechaFin, setFechaFin] = useState(hoy);
+    const [mostrarFiltroFechas, setMostrarFiltroFechas] = useState(false);
+
+    // Estados para paginación
+    const [paginaActual, setPaginaActual] = useState(1);
+    const registrosPorPagina = 10;
 
     const [galeriaModal, setGaleriaModal] = useState(null);
     const [imagenActual, setImagenActual] = useState(0);
@@ -87,32 +102,104 @@ export default function Devoluciones() {
     };
 
     const registrosFiltrados = useMemo(() => {
+        let resultado = registros;
+
+        // Filtro por búsqueda de texto
         const q = busqueda.toLowerCase().trim();
-        if (!q) return registros;
+        if (q) {
+            resultado = resultado.filter((item) => {
+                const patente = String(item.patente ?? "").toLowerCase();
+                const ruta = String(item.id_manifiesto ?? "").toLowerCase();
+                const key = String(item.key ?? "").toLowerCase();
+                const status = String(item.status ?? "").toLowerCase();
+                return (
+                    patente.includes(q) ||
+                    ruta.includes(q) ||
+                    key.includes(q) ||
+                    status.includes(q)
+                );
+            });
+        }
 
-        return registros.filter((item) => {
-            const patente = String(item.patente ?? "").toLowerCase();
-            const ruta = String(item.id_manifiesto ?? "").toLowerCase();
-            const key = String(item.key ?? "").toLowerCase();
-            const status = String(item.status ?? "").toLowerCase();
-            return (
-                patente.includes(q) ||
-                ruta.includes(q) ||
-                key.includes(q) ||
-                status.includes(q)
+        // Filtro por status
+        if (filtroStatus !== "todos") {
+            resultado = resultado.filter((item) =>
+                filtroStatus === "confirmada"
+                    ? item.status === "confirmada"
+                    : item.status !== "confirmada"
             );
-        });
-    }, [registros, busqueda]);
+        }
 
+        // Filtro por rango de fechas
+        if (fechaInicio || fechaFin) {
+            resultado = resultado.filter((item) => {
+                const fecha = safeDate(item.created_at);
+                if (!fecha) return false;
+
+                const fechaSoloFecha = new Date(
+                    fecha.getFullYear(),
+                    fecha.getMonth(),
+                    fecha.getDate()
+                );
+
+                if (fechaInicio && fechaFin) {
+                    const inicio = new Date(fechaInicio);
+                    const fin = new Date(fechaFin);
+                    return fechaSoloFecha >= inicio && fechaSoloFecha <= fin;
+                } else if (fechaInicio) {
+                    const inicio = new Date(fechaInicio);
+                    return fechaSoloFecha >= inicio;
+                } else if (fechaFin) {
+                    const fin = new Date(fechaFin);
+                    return fechaSoloFecha <= fin;
+                }
+
+                return true;
+            });
+        }
+
+        return resultado;
+    }, [registros, busqueda, filtroStatus, fechaInicio, fechaFin]);
+
+    // Cálculos de estadísticas
+    const totalRegistros = registrosFiltrados.length;
     const pendientes = useMemo(
         () => registrosFiltrados.filter((r) => r.status !== "confirmada").length,
         [registrosFiltrados]
     );
-
     const confirmadas = useMemo(
         () => registrosFiltrados.filter((r) => r.status === "confirmada").length,
         [registrosFiltrados]
     );
+
+    // Paginación
+    const totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
+    const registrosPaginados = useMemo(() => {
+        const inicio = (paginaActual - 1) * registrosPorPagina;
+        const fin = inicio + registrosPorPagina;
+        return registrosFiltrados.slice(inicio, fin);
+    }, [registrosFiltrados, paginaActual]);
+
+    // Reset página cuando cambian filtros
+    useEffect(() => {
+        setPaginaActual(1);
+    }, [busqueda, filtroStatus, fechaInicio, fechaFin]);
+
+    const cambiarPagina = (nuevaPagina) => {
+        if (nuevaPagina >= 1 && nuevaPagina <= totalPaginas) {
+            setPaginaActual(nuevaPagina);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+    };
+
+    const limpiarFiltros = () => {
+        setBusqueda("");
+        setFiltroStatus("todos");
+        const hoy = new Date().toISOString().split('T')[0];
+        setFechaInicio(hoy);
+        setFechaFin(hoy);
+        setPaginaActual(1);
+    };
 
     const abrirGaleria = (item) => {
         const fotos = [];
@@ -157,39 +244,98 @@ export default function Devoluciones() {
                 icon={Package}
             />
 
-            {/* Stats Cards */}
+            {/* Stats Cards - Ahora son botones funcionales */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                <button
+                    onClick={() => setFiltroStatus("todos")}
+                    className={`bg-white p-5 rounded-2xl shadow-sm border-2 transition-all text-left ${
+                        filtroStatus === "todos"
+                            ? "border-blue-500 shadow-lg scale-[1.02]"
+                            : "border-slate-200 hover:shadow-md hover:border-blue-300"
+                    }`}
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
                                 Total Registros
                             </p>
                             <p className="text-3xl font-black text-slate-900">
-                                {registrosFiltrados.length}
+                                {totalRegistros}
                             </p>
                         </div>
-                        <div className="bg-blue-100 p-3 rounded-xl">
-                            <Package className="text-blue-600" size={24} />
+                        <div
+                            className={`p-3 rounded-xl ${
+                                filtroStatus === "todos"
+                                    ? "bg-blue-600"
+                                    : "bg-blue-100"
+                            }`}
+                        >
+                            <Package
+                                className={
+                                    filtroStatus === "todos"
+                                        ? "text-white"
+                                        : "text-blue-600"
+                                }
+                                size={24}
+                            />
                         </div>
                     </div>
-                </div>
+                    {filtroStatus === "todos" && (
+                        <div className="mt-2 text-xs font-bold text-blue-600">
+                            ✓ Filtro activo
+                        </div>
+                    )}
+                </button>
 
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-amber-200 hover:shadow-md transition-shadow">
+                <button
+                    onClick={() => setFiltroStatus("pendiente")}
+                    className={`bg-white p-5 rounded-2xl shadow-sm border-2 transition-all text-left ${
+                        filtroStatus === "pendiente"
+                            ? "border-amber-500 shadow-lg scale-[1.02]"
+                            : "border-amber-200 hover:shadow-md hover:border-amber-400"
+                    }`}
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1">
                                 Pendientes
                             </p>
-                            <p className="text-3xl font-black text-amber-700">{pendientes}</p>
+                            <p className="text-3xl font-black text-amber-700">
+                                {pendientes}
+                            </p>
                         </div>
-                        <div className="bg-amber-100 p-3 rounded-xl">
-                            <Clock className="text-amber-600" size={24} />
+                        <div
+                            className={`p-3 rounded-xl ${
+                                filtroStatus === "pendiente"
+                                    ? "bg-amber-600"
+                                    : "bg-amber-100"
+                            }`}
+                        >
+                            <Clock
+                                className={
+                                    filtroStatus === "pendiente"
+                                        ? "text-white"
+                                        : "text-amber-600"
+                                }
+                                size={24}
+                            />
                         </div>
                     </div>
-                </div>
+                    {filtroStatus === "pendiente" && (
+                        <div className="mt-2 text-xs font-bold text-amber-600">
+                            ✓ Filtro activo
+                        </div>
+                    )}
+                </button>
 
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-emerald-200 hover:shadow-md transition-shadow">
+                <button
+                    onClick={() => setFiltroStatus("confirmada")}
+                    className={`bg-white p-5 rounded-2xl shadow-sm border-2 transition-all text-left ${
+                        filtroStatus === "confirmada"
+                            ? "border-emerald-500 shadow-lg scale-[1.02]"
+                            : "border-emerald-200 hover:shadow-md hover:border-emerald-400"
+                    }`}
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">
@@ -199,198 +345,429 @@ export default function Devoluciones() {
                                 {confirmadas}
                             </p>
                         </div>
-                        <div className="bg-emerald-100 p-3 rounded-xl">
-                            <CheckCircle2 className="text-emerald-600" size={24} />
+                        <div
+                            className={`p-3 rounded-xl ${
+                                filtroStatus === "confirmada"
+                                    ? "bg-emerald-600"
+                                    : "bg-emerald-100"
+                            }`}
+                        >
+                            <CheckCircle2
+                                className={
+                                    filtroStatus === "confirmada"
+                                        ? "text-white"
+                                        : "text-emerald-600"
+                                }
+                                size={24}
+                            />
                         </div>
                     </div>
-                </div>
-            </div>
-
-            {/* Search and Refresh Bar */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="relative w-full sm:w-96">
-                    <Search className="absolute left-4 top-3.5 text-slate-400" size={18} />
-                    <input
-                        type="text"
-                        placeholder="Buscar por patente, ruta, key o status..."
-                        value={busqueda}
-                        onChange={(e) => setBusqueda(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                    />
-                </div>
-
-                <button
-                    onClick={fetchData}
-                    disabled={loading}
-                    className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all font-bold text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-                    {loading ? "Sincronizando..." : "Actualizar"}
+                    {filtroStatus === "confirmada" && (
+                        <div className="mt-2 text-xs font-bold text-emerald-600">
+                            ✓ Filtro activo
+                        </div>
+                    )}
                 </button>
             </div>
+
+            {/* Barra de búsqueda y filtros */}
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
+                {/* Indicador de día actual */}
+                <div className="mb-4 flex items-center justify-between pb-4 border-b border-slate-200">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-2 rounded-lg">
+                            <Calendar className="text-white" size={18} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                Mostrando registros del
+                            </p>
+                            <p className="text-lg font-black text-slate-900">
+                                {new Date().toLocaleDateString("es-CL", {
+                                    weekday: 'long',
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                })}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setMostrarFiltroFechas(!mostrarFiltroFechas)}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all font-bold text-sm"
+                    >
+                        <Calendar size={16} />
+                        Ver otras fechas
+                    </button>
+                </div>
+
+                <div className="flex flex-col lg:flex-row gap-4">
+                    {/* Búsqueda */}
+                    <div className="relative flex-1">
+                        <Search
+                            className="absolute left-4 top-3.5 text-slate-400"
+                            size={18}
+                        />
+                        <input
+                            type="text"
+                            placeholder="Buscar por patente, ruta, key o status..."
+                            value={busqueda}
+                            onChange={(e) => setBusqueda(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        />
+                    </div>
+
+                    {/* Limpiar filtros */}
+                    {(busqueda || filtroStatus !== "todos") && (
+                        <button
+                            onClick={limpiarFiltros}
+                            className="flex items-center gap-2 px-5 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all font-bold text-sm"
+                        >
+                            <X size={16} />
+                            Limpiar
+                        </button>
+                    )}
+
+                    {/* Actualizar */}
+                    <button
+                        onClick={fetchData}
+                        disabled={loading}
+                        className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all font-bold text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                        {loading ? "Sincronizando..." : "Actualizar"}
+                    </button>
+                </div>
+
+                {/* Panel de filtro de fechas */}
+                {mostrarFiltroFechas && (
+                    <div className="mt-4 pt-4 border-t border-slate-200">
+                        <div className="mb-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Calendar size={16} className="text-purple-600" />
+                                <span className="text-sm font-bold text-slate-700">
+                                    Seleccionar rango de fechas personalizado
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    const hoy = new Date().toISOString().split('T')[0];
+                                    setFechaInicio(hoy);
+                                    setFechaFin(hoy);
+                                    setMostrarFiltroFechas(false);
+                                }}
+                                className="text-xs font-bold text-blue-600 hover:text-blue-700 underline"
+                            >
+                                Volver a hoy
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2">
+                                    Fecha Inicio
+                                </label>
+                                <input
+                                    type="date"
+                                    value={fechaInicio}
+                                    onChange={(e) => setFechaInicio(e.target.value)}
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2">
+                                    Fecha Fin
+                                </label>
+                                <input
+                                    type="date"
+                                    value={fechaFin}
+                                    onChange={(e) => setFechaFin(e.target.value)}
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Indicador de filtros activos */}
+            {(filtroStatus !== "todos" || busqueda) && (
+                <div className="mb-4 flex items-center gap-2 text-sm">
+                    <Filter size={16} className="text-blue-600" />
+                    <span className="font-semibold text-slate-700">
+                        Filtros activos:
+                    </span>
+                    {filtroStatus !== "todos" && (
+                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">
+                            {filtroStatus === "confirmada" ? "Confirmadas" : "Pendientes"}
+                        </span>
+                    )}
+                    {busqueda && (
+                        <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-bold">
+                            Búsqueda: "{busqueda}"
+                        </span>
+                    )}
+                </div>
+            )}
 
             {/* Main Table */}
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-gradient-to-r from-slate-100 to-slate-50 border-b-2 border-slate-200">
-                        <tr>
-                            <th className="px-6 py-5 text-xs font-black text-slate-600 uppercase tracking-wider">
-                                Fecha y Hora
-                            </th>
-                            <th className="px-6 py-5 text-xs font-black text-slate-600 uppercase tracking-wider">
-                                Patente
-                            </th>
-                            <th className="px-6 py-5 text-xs font-black text-slate-600 uppercase tracking-wider">
-                                ID Ruta
-                            </th>
-                            <th className="px-6 py-5 text-xs font-black text-slate-600 uppercase tracking-wider">
-                                Estado
-                            </th>
-                            <th className="px-6 py-5 text-xs font-black text-slate-600 uppercase tracking-wider text-center">
-                                Evidencia
-                            </th>
-                        </tr>
+                            <tr>
+                                <th className="px-6 py-5 text-xs font-black text-slate-600 uppercase tracking-wider">
+                                    Fecha y Hora
+                                </th>
+                                <th className="px-6 py-5 text-xs font-black text-slate-600 uppercase tracking-wider">
+                                    Patente
+                                </th>
+                                <th className="px-6 py-5 text-xs font-black text-slate-600 uppercase tracking-wider">
+                                    ID Ruta
+                                </th>
+                                <th className="px-6 py-5 text-xs font-black text-slate-600 uppercase tracking-wider">
+                                    Estado
+                                </th>
+                                <th className="px-6 py-5 text-xs font-black text-slate-600 uppercase tracking-wider text-center">
+                                    Evidencia
+                                </th>
+                            </tr>
                         </thead>
 
                         <tbody className="divide-y divide-slate-100">
-                        {registrosFiltrados.length === 0 ? (
-                            <tr>
-                                <td colSpan={5} className="p-16 text-center">
-                                    <div className="flex flex-col items-center gap-3 text-slate-400">
-                                        <div className="bg-slate-100 p-4 rounded-full">
-                                            <AlertCircle size={40} className="opacity-50" />
-                                        </div>
-                                        <p className="font-bold text-lg">
-                                            No se encontraron registros
-                                        </p>
-                                        <p className="text-sm">
-                                            Intenta ajustar los filtros de búsqueda
-                                        </p>
-                                    </div>
-                                </td>
-                            </tr>
-                        ) : (
-                            registrosFiltrados.map((item) => {
-                                const dt = safeDate(item.created_at);
-                                const isConfirmada = item.status === "confirmada";
-
-                                const fotosAdicionales = safeParseJSONList(
-                                    item.fotos_adicionales
-                                );
-                                const totalFotos =
-                                    (item.foto_url ? 1 : 0) + fotosAdicionales.length;
-
-                                return (
-                                    <tr
-                                        key={item.id}
-                                        className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all group"
-                                    >
-                                        <td className="px-6 py-5">
-                                            <div className="flex flex-col gap-0.5">
-                          <span className="font-mono text-xs text-slate-500 font-semibold">
-                            {dt ? dt.toLocaleDateString("es-CL") : "-"}
-                          </span>
-                                                <span className="font-mono text-xs text-slate-400">
-                            {dt
-                                ? dt.toLocaleTimeString("es-CL", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                })
-                                : "--:--"}
-                          </span>
+                            {registrosPaginados.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="p-16 text-center">
+                                        <div className="flex flex-col items-center gap-3 text-slate-400">
+                                            <div className="bg-slate-100 p-4 rounded-full">
+                                                <AlertCircle size={40} className="opacity-50" />
                                             </div>
-                                        </td>
+                                            <p className="font-bold text-lg">
+                                                No se encontraron registros
+                                            </p>
+                                            <p className="text-sm">
+                                                {busqueda || filtroStatus !== "todos"
+                                                    ? "Intenta ajustar los filtros de búsqueda"
+                                                    : "No hay registros para el día de hoy"}
+                                            </p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : (
+                                registrosPaginados.map((item) => {
+                                    const dt = safeDate(item.created_at);
+                                    const isConfirmada = item.status === "confirmada";
 
-                                        <td className="px-6 py-5">
-                        <span className="inline-flex items-center font-black text-blue-700 bg-gradient-to-r from-blue-50 to-blue-100 px-3 py-2 rounded-xl border-2 border-blue-200 text-sm tracking-wider shadow-sm">
-                          {item.patente}
-                        </span>
-                                        </td>
+                                    const fotosAdicionales = safeParseJSONList(
+                                        item.fotos_adicionales
+                                    );
+                                    const totalFotos =
+                                        (item.foto_url ? 1 : 0) + fotosAdicionales.length;
 
-                                        <td className="px-6 py-5">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const sgList = safeParseJSONList(item.sg);
-                                                    const ordenList = safeParseJSONList(
-                                                        item.numero_orden
-                                                    );
-                                                    const subEstados = safeParseJSONList(item.sub_estado);
+                                    return (
+                                        <tr
+                                            key={item.id}
+                                            className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all group"
+                                        >
+                                            <td className="px-6 py-5">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="font-mono text-xs text-slate-500 font-semibold">
+                                                        {dt ? dt.toLocaleDateString("es-CL") : "-"}
+                                                    </span>
+                                                    <span className="font-mono text-xs text-slate-400">
+                                                        {dt
+                                                            ? dt.toLocaleTimeString("es-CL", {
+                                                                  hour: "2-digit",
+                                                                  minute: "2-digit",
+                                                              })
+                                                            : "--:--"}
+                                                    </span>
+                                                </div>
+                                            </td>
 
-                                                    setSgModal({
-                                                        ruta: item.id_manifiesto,
-                                                        patente: item.patente,
-                                                        sgList,
-                                                        ordenList,
-                                                        subEstados,
-                                                    });
-                                                }}
-                                                className="font-mono font-bold text-slate-700 hover:text-blue-600 hover:underline decoration-2 underline-offset-4 transition-all"
-                                                title="Ver detalles de SG asociados"
-                                            >
-                                                {item.id_manifiesto}
-                                            </button>
-                                        </td>
+                                            <td className="px-6 py-5">
+                                                <span className="inline-flex items-center font-black text-blue-700 bg-gradient-to-r from-blue-50 to-blue-100 px-3 py-2 rounded-xl border-2 border-blue-200 text-sm tracking-wider shadow-sm">
+                                                    {item.patente}
+                                                </span>
+                                            </td>
 
-                                        <td className="px-6 py-5">
-                        <span
-                            className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide border-2 shadow-sm ${
-                                isConfirmada
-                                    ? "bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border-emerald-300"
-                                    : "bg-gradient-to-r from-amber-50 to-amber-100 text-amber-700 border-amber-300"
-                            }`}
-                        >
-                          {isConfirmada ? (
-                              <CheckCircle2 size={14} />
-                          ) : (
-                              <Clock size={14} />
-                          )}
-                            {item.status || "pendiente"}
-                        </span>
-                                        </td>
-
-                                        <td className="px-6 py-5 text-center">
-                                            {totalFotos > 0 ? (
+                                            <td className="px-6 py-5">
                                                 <button
                                                     type="button"
-                                                    onClick={() => abrirGaleria(item)}
-                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-slate-100 to-slate-200 hover:from-blue-600 hover:to-blue-700 text-slate-700 hover:text-white rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md"
+                                                    onClick={() => {
+                                                        const sgList = safeParseJSONList(item.sg);
+                                                        const ordenList = safeParseJSONList(
+                                                            item.numero_orden
+                                                        );
+                                                        const subEstados = safeParseJSONList(
+                                                            item.sub_estado
+                                                        );
+
+                                                        setSgModal({
+                                                            ruta: item.id_manifiesto,
+                                                            patente: item.patente,
+                                                            sgList,
+                                                            ordenList,
+                                                            subEstados,
+                                                        });
+                                                    }}
+                                                    className="font-mono font-bold text-slate-700 hover:text-blue-600 hover:underline decoration-2 underline-offset-4 transition-all"
+                                                    title="Ver detalles de SG asociados"
                                                 >
-                                                    {totalFotos > 1 ? (
-                                                        <>
-                                                            <Images size={14} />
-                                                            Ver {totalFotos} Fotos
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <ImageIcon size={14} />
-                                                            Ver Foto
-                                                        </>
-                                                    )}
+                                                    {item.id_manifiesto}
                                                 </button>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1.5 text-slate-300 text-xs italic px-3 py-2 bg-slate-50 rounded-lg">
-                            <X size={12} />
-                            Sin evidencia
-                          </span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                );
-                            })
-                        )}
+                                            </td>
+
+                                            <td className="px-6 py-5">
+                                                <span
+                                                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide border-2 shadow-sm ${
+                                                        isConfirmada
+                                                            ? "bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border-emerald-300"
+                                                            : "bg-gradient-to-r from-amber-50 to-amber-100 text-amber-700 border-amber-300"
+                                                    }`}
+                                                >
+                                                    {isConfirmada ? (
+                                                        <CheckCircle2 size={14} />
+                                                    ) : (
+                                                        <Clock size={14} />
+                                                    )}
+                                                    {item.status || "pendiente"}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-6 py-5 text-center">
+                                                {totalFotos > 0 ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => abrirGaleria(item)}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-slate-100 to-slate-200 hover:from-blue-600 hover:to-blue-700 text-slate-700 hover:text-white rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md"
+                                                    >
+                                                        {totalFotos > 1 ? (
+                                                            <>
+                                                                <Images size={14} />
+                                                                Ver {totalFotos} Fotos
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <ImageIcon size={14} />
+                                                                Ver Foto
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1.5 text-slate-300 text-xs italic px-3 py-2 bg-slate-50 rounded-lg">
+                                                        <X size={12} />
+                                                        Sin evidencia
+                                                    </span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
                         </tbody>
                     </table>
                 </div>
 
-                <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-t-2 border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs font-bold">
-          <span className="text-slate-600">
-            Mostrando{" "}
-              <span className="text-blue-600">{registrosFiltrados.length}</span>{" "}
-              registro{registrosFiltrados.length !== 1 ? "s" : ""}
-          </span>
-                    <span className="text-slate-500">Sistema CATEX • Centro de Bodega</span>
+                {/* Footer con paginación */}
+                <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-t-2 border-slate-200">
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <span className="text-xs font-bold text-slate-600">
+                            Mostrando{" "}
+                            <span className="text-blue-600">
+                                {totalRegistros === 0
+                                    ? 0
+                                    : (paginaActual - 1) * registrosPorPagina + 1}
+                            </span>
+                            {" - "}
+                            <span className="text-blue-600">
+                                {Math.min(
+                                    paginaActual * registrosPorPagina,
+                                    totalRegistros
+                                )}
+                            </span>{" "}
+                            de{" "}
+                            <span className="text-blue-600">{totalRegistros}</span>{" "}
+                            registro{totalRegistros !== 1 ? "s" : ""}
+                        </span>
+
+                        {/* Controles de paginación */}
+                        {totalPaginas > 1 && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => cambiarPagina(1)}
+                                    disabled={paginaActual === 1}
+                                    className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                >
+                                    Primera
+                                </button>
+
+                                <button
+                                    onClick={() => cambiarPagina(paginaActual - 1)}
+                                    disabled={paginaActual === 1}
+                                    className="p-2 bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+
+                                <div className="flex items-center gap-1">
+                                    {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+                                        .filter((num) => {
+                                            // Mostrar: primera, última, actual, y 2 a cada lado de la actual
+                                            return (
+                                                num === 1 ||
+                                                num === totalPaginas ||
+                                                Math.abs(num - paginaActual) <= 2
+                                            );
+                                        })
+                                        .map((num, idx, arr) => {
+                                            // Agregar separador si hay salto
+                                            const mostrarSeparador =
+                                                idx > 0 && num - arr[idx - 1] > 1;
+
+                                            return (
+                                                <div key={num} className="flex items-center gap-1">
+                                                    {mostrarSeparador && (
+                                                        <span className="px-2 text-slate-400">
+                                                            ...
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => cambiarPagina(num)}
+                                                        className={`min-w-[36px] px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                                                            num === paginaActual
+                                                                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md"
+                                                                : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+                                                        }`}
+                                                    >
+                                                        {num}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                </div>
+
+                                <button
+                                    onClick={() => cambiarPagina(paginaActual + 1)}
+                                    disabled={paginaActual === totalPaginas}
+                                    className="p-2 bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+
+                                <button
+                                    onClick={() => cambiarPagina(totalPaginas)}
+                                    disabled={paginaActual === totalPaginas}
+                                    className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                >
+                                    Última
+                                </button>
+                            </div>
+                        )}
+
+                        <span className="text-xs text-slate-500 font-semibold">
+                            CCO
+                        </span>
+                    </div>
                 </div>
             </div>
 
@@ -454,7 +831,9 @@ export default function Devoluciones() {
                                     <button
                                         type="button"
                                         onClick={siguienteImagen}
-                                        disabled={imagenActual === galeriaModal.fotos.length - 1}
+                                        disabled={
+                                            imagenActual === galeriaModal.fotos.length - 1
+                                        }
                                         className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white p-4 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                                         title="Siguiente"
                                     >
@@ -532,8 +911,8 @@ export default function Devoluciones() {
                                         <h3 className="text-2xl font-black text-white flex items-baseline gap-3">
                                             {sgModal?.ruta || "-"}
                                             <span className="text-blue-200 font-mono text-base font-semibold">
-                        {sgModal?.patente || "-"}
-                      </span>
+                                                {sgModal?.patente || "-"}
+                                            </span>
                                         </h3>
                                     </div>
                                     <button
@@ -553,8 +932,8 @@ export default function Devoluciones() {
                                                 SG Asociados
                                             </p>
                                             <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-black">
-                        {sgModal?.sgList?.length || 0} items
-                      </span>
+                                                {sgModal?.sgList?.length || 0} items
+                                            </span>
                                         </div>
 
                                         <div className="max-h-[400px] overflow-auto border-2 border-slate-200 rounded-2xl p-5 bg-gradient-to-br from-slate-50 to-white shadow-inner">
@@ -565,7 +944,9 @@ export default function Devoluciones() {
                                                             key={idx}
                                                             className="font-mono text-sm text-slate-800 bg-white px-3 py-2 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all"
                                                         >
-                                                            <span className="text-slate-400 mr-2">•</span>
+                                                            <span className="text-slate-400 mr-2">
+                                                                •
+                                                            </span>
                                                             {sg}
                                                         </li>
                                                     ))}
@@ -592,11 +973,16 @@ export default function Devoluciones() {
                                             </p>
                                             <div className="space-y-1.5 text-sm text-slate-800">
                                                 {(sgModal?.subEstados?.length
-                                                        ? sgModal.subEstados
-                                                        : ["-"]
+                                                    ? sgModal.subEstados
+                                                    : ["-"]
                                                 ).map((x, i) => (
-                                                    <div key={i} className="flex items-start gap-2">
-                                                        <span className="text-slate-400 mt-0.5">•</span>
+                                                    <div
+                                                        key={i}
+                                                        className="flex items-start gap-2"
+                                                    >
+                                                        <span className="text-slate-400 mt-0.5">
+                                                            •
+                                                        </span>
                                                         <span className="font-medium">{x}</span>
                                                     </div>
                                                 ))}
@@ -609,14 +995,19 @@ export default function Devoluciones() {
                                                 Nº Orden
                                             </p>
                                             <div className="max-h-[160px] overflow-auto space-y-1 text-sm">
-                                                {(sgModal?.ordenList?.length ? sgModal.ordenList : ["-"])
+                                                {(sgModal?.ordenList?.length
+                                                    ? sgModal.ordenList
+                                                    : ["-"]
+                                                )
                                                     .slice(0, 50)
                                                     .map((x, i) => (
                                                         <div
                                                             key={i}
                                                             className="font-mono text-xs text-slate-700 flex items-start gap-2"
                                                         >
-                                                            <span className="text-slate-400">•</span>
+                                                            <span className="text-slate-400">
+                                                                •
+                                                            </span>
                                                             <span>{x}</span>
                                                         </div>
                                                     ))}
@@ -630,9 +1021,9 @@ export default function Devoluciones() {
                                         <AlertCircle size={14} className="text-blue-600" />
                                     </div>
                                     <span className="font-semibold">
-                    Este listado es informativo • Al confirmar la ruta se procesa
-                    el paquete completo
-                  </span>
+                                        Este listado es informativo • Al confirmar la ruta
+                                        se procesa el paquete completo
+                                    </span>
                                 </div>
                             </>
                         )}
