@@ -136,21 +136,35 @@ const ConfirmModal = ({ isOpen, onCancel, onConfirm, title, message }) => {
     )
 }
 
-function MapFocusHandler({ rutasDestacadas, rutasReales, pedidos }) {
+function MapFocusHandler({ rutasDestacadas, rutasReales, pedidos, isCapturing }) {
     const map = useMap()
     useEffect(() => {
         if (!map) return;
         let bounds = L.latLngBounds([])
         let hasPoints = false
-        if (rutasDestacadas.size > 0) {
+        if (isCapturing) {
+            if (rutasDestacadas.size > 0) {
+                pedidos.forEach(p => {
+                    if (rutasDestacadas.has(p.ruta)) {
+                        bounds.extend([p.lat, p.lng]);
+                        hasPoints = true;
+                    }
+                });
+            } else if (pedidos.length > 0) {
+                pedidos.forEach(p => { bounds.extend([p.lat, p.lng]); hasPoints = true; });
+            }
+        } else if (rutasDestacadas.size > 0) {
             rutasDestacadas.forEach(r => { if(rutasReales[r]?.positions?.length) { bounds.extend(rutasReales[r].positions); hasPoints = true } })
         } else if (Object.keys(rutasReales).length > 0) {
             Object.values(rutasReales).forEach(r => { if (r.positions?.length) { bounds.extend(r.positions); hasPoints = true; } });
         } else if (pedidos.length > 0) {
             pedidos.forEach(p => { bounds.extend([p.lat, p.lng]); hasPoints = true; });
         }
-        if(hasPoints && bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50], animate: true, maxZoom: 15 })
-    }, [rutasDestacadas, rutasReales, pedidos, map])
+        if (hasPoints && bounds.isValid()) {
+            const padding = isCapturing ? [20, 20] : [50, 50];
+            map.fitBounds(bounds, { padding, animate: !isCapturing, maxZoom: 15 });
+        }
+    }, [rutasDestacadas, rutasReales, pedidos, map, isCapturing])
     return null
 }
 
@@ -326,6 +340,7 @@ export default function Ruteo() {
     const [showModalRuta, setShowModalRuta] = useState(false)
     const [showResetConfirm, setShowResetConfirm] = useState(false)
     const [notification, setNotification] = useState({ visible: false, message: '', type: 'info' })
+    const [isCapturing, setIsCapturing] = useState(false)
 
     // Refs
     const mapCaptureRef = useRef(null) // contenedor del mapa para pantallazos
@@ -639,7 +654,7 @@ export default function Ruteo() {
                 "Cliente": p.cliente,
                 "Dirección": p.direccion,
                 "Comuna": p.comuna,
-                "Ruta": p.ruta === "LAT" ? "LATERAL" : `RUTA ${p.ruta}`,
+                "Ruta": p.ruta === "LAT" ? "LAT" : `RUTA ${p.ruta}`,
                 "Total Bultos": isFirst ? totales[p.ruta] : ""
             }
         });
@@ -686,32 +701,60 @@ export default function Ruteo() {
                     right: { style: 'thin', color: { rgb: 'CBD5E1' } },
                 },
             };
-            const zebraA = { fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } } };
-            const zebraB = { fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } } };
 
             const headers = Object.keys(data[0] || {});
-            // Header row is 1
             headers.forEach((_, idx) => {
                 const addr = XLSXW.utils.encode_cell({ r: 0, c: idx });
                 if (ws[addr]) ws[addr].s = headerStyle;
             });
 
-            // Zebra rows + bordes suaves
+            // Mapa de colores suaves por ruta (pasteles)
+            const pastelByIndex = ['FEE2E2','DBEAFE','D1FAE5','FDE68A','EDE9FE','FCE7F3','CFFAFE','FED7AA'];
+            const pastelLAT = 'E2E8F0';
+
+            // Identificar columna de "Ruta"
+            const rutaCol = headers.findIndex(h => h.toLowerCase() === 'ruta');
+            let prevRutaKey = null;
+
             for (let r = 1; r <= range.e.r; r++) {
+                // Leer clave de ruta desde la celda de la columna Ruta
+                let rutaKey = null;
+                if (rutaCol >= 0) {
+                    const rutaAddr = XLSXW.utils.encode_cell({ r, c: rutaCol });
+                    const cell = ws[rutaAddr];
+                    const v = cell && (cell.v || cell.w);
+                    if (typeof v === 'string') {
+                        if (v.toUpperCase().startsWith('RUTA')) {
+                            const num = parseInt(v.split(' ')[1], 10);
+                            rutaKey = isNaN(num) ? null : num;
+                        } else if (v.toUpperCase().includes('LAT') || v.toUpperCase() === 'LAT') {
+                            rutaKey = 'LAT';
+                        }
+                    }
+                }
+
+                // Elegir color pastel por ruta
+                let fillRGB = 'FFFFFF';
+                if (rutaKey === 'LAT') fillRGB = pastelLAT;
+                else if (typeof rutaKey === 'number') fillRGB = pastelByIndex[((rutaKey - 1) % pastelByIndex.length)];
+
+                const isNewGroup = r === 1 || rutaKey !== prevRutaKey;
+
                 for (let c = 0; c <= range.e.c; c++) {
                     const addr = XLSXW.utils.encode_cell({ r, c });
                     if (!ws[addr]) continue;
                     ws[addr].s = {
-                        ...(r % 2 === 0 ? zebraA : zebraB),
+                        fill: { patternType: 'solid', fgColor: { rgb: fillRGB } },
                         alignment: { vertical: 'center', horizontal: c === 0 ? 'center' : 'left', wrapText: true },
                         border: {
-                            top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+                            top: { style: isNewGroup ? 'medium' : 'thin', color: { rgb: isNewGroup ? 'CBD5E1' : 'E2E8F0' } },
                             bottom: { style: 'thin', color: { rgb: 'E2E8F0' } },
                             left: { style: 'thin', color: { rgb: 'E2E8F0' } },
                             right: { style: 'thin', color: { rgb: 'E2E8F0' } },
                         },
                     };
                 }
+                prevRutaKey = rutaKey;
             }
         }
 
@@ -752,7 +795,7 @@ export default function Ruteo() {
 
         // Helper: pequeño wait para que Leaflet termine de renderizar tiles/polylines
         const wait = (ms) => new Promise(r => setTimeout(r, ms));
-
+        setIsCapturing(true);
         try {
             for (let idx = 0; idx < rutas.length; idx++) {
                 const rk = rutas[idx];
@@ -791,6 +834,7 @@ export default function Ruteo() {
             showToast("No se pudo generar el PDF de pantallazos.", "error");
         } finally {
             setRutasDestacadas(prev);
+            setIsCapturing(false);
         }
     }
 
@@ -1196,7 +1240,15 @@ export default function Ruteo() {
             </div>
 
             {/* --- MAPA (RIGHT) --- */}
-            <div ref={mapCaptureRef} className="flex-1 relative h-full bg-slate-200 z-0">
+            <div ref={mapCaptureRef} data-capturing={isCapturing ? 'true' : 'false'} className="flex-1 relative h-full bg-slate-200 z-0">
+                <style>{`
+                  [data-capturing="true"] .leaflet-control-container,
+                  [data-capturing="true"] .leaflet-control-attribution,
+                  [data-capturing="true"] .leaflet-bottom,
+                  [data-capturing="true"] [data-ui="cards"] {
+                    display: none !important;
+                  }
+                `}</style>
                 <MapContainer
                     center={mapCenter}
                     zoom={13}
@@ -1209,11 +1261,12 @@ export default function Ruteo() {
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         attribution='&copy; OSM'
                     />
-                    <MapFocusHandler
-                        rutasDestacadas={rutasDestacadas}
-                        rutasReales={rutasReales}
-                        pedidos={pedidos}
-                    />
+                <MapFocusHandler
+                    rutasDestacadas={rutasDestacadas}
+                    rutasReales={rutasReales}
+                    pedidos={pedidos}
+                    isCapturing={isCapturing}
+                />
 
                     {/* ✨ Componente de Lazo Manual */}
                     <LassoSelector
@@ -1222,7 +1275,7 @@ export default function Ruteo() {
                     />
 
                     {/* Polylines */}
-                    {mostrarLineas && Object.keys(rutasReales).map(k => {
+                    {mostrarLineas && !isCapturing && Object.keys(rutasReales).map(k => {
                         const routeKey = k === 'LAT' ? 'LAT' : parseInt(k);
                         const rIdNum = typeof routeKey === 'number' ? routeKey : null;
                         const r = rutasReales[k];
@@ -1353,7 +1406,7 @@ export default function Ruteo() {
                 </MapContainer>
 
                 {/* --- TARJETAS DE RUTA FLOTANTES (BOTTOM) --- */}
-                <div className="absolute bottom-6 left-6 right-6 flex gap-4 overflow-x-auto z-[1000] pb-4 px-2 snap-x scrollbar-hide">
+                <div data-ui="cards" className="absolute bottom-6 left-6 right-6 flex gap-4 overflow-x-auto z-[1000] pb-4 px-2 snap-x scrollbar-hide">
                     {pedidos.length > 0 && [...Array(config.moviles)].map((_, i) => {
                         const r = i+1;
                         const pts = pedidos.filter(p => p.ruta === r);
@@ -1589,7 +1642,7 @@ export default function Ruteo() {
                                 LAT
                               </span>
                                     <span className="text-xs font-bold text-slate-600 group-hover:text-slate-800 uppercase">
-                                Lateral
+                                LAT
                               </span>
                                 </button>
                             </div>
