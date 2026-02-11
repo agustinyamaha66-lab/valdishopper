@@ -53,11 +53,13 @@ export default function ChatPanel({
                                     fecha,
                                     height = "420px",
                                     hideHeader = false,
+                                    onMessageSent,
                                   }) {
   const [loading, setLoading] = useState(false);
   const [mensajes, setMensajes] = useState([]);
   const [texto, setTexto] = useState("");
   const [sending, setSending] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const [previewUrl, setPreviewUrl] = useState("");
   const endRef = useRef(null);
@@ -121,6 +123,7 @@ export default function ChatPanel({
       setTexto("");
       await fetchMensajes();
       setTimeout(scrollToBottom, 60);
+      if (onMessageSent) onMessageSent();
     } catch (e) {
       console.error("[ChatPanel] send error:", e);
       alert("No se pudo enviar el mensaje. Verifica los permisos de la tabla.");
@@ -161,6 +164,12 @@ export default function ChatPanel({
 
     return () => supabase.removeChannel(channel);
   }, [patente, fecha]);
+
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setShowScrollBtn(!isAtBottom);
+  };
 
   return (
       <div className="h-full w-full flex flex-col bg-white relative">
@@ -221,8 +230,9 @@ export default function ChatPanel({
         )}
 
         <div
-            className="flex-1 overflow-auto px-4 py-4 space-y-2 bg-slate-50"
+            className="flex-1 overflow-auto px-4 py-4 space-y-2 bg-slate-50 scroll-smooth"
             style={{ height }}
+            onScroll={handleScroll}
         >
           {loading ? (
               <div className="flex flex-col items-center justify-center h-full gap-3">
@@ -325,6 +335,17 @@ export default function ChatPanel({
 
           <div ref={endRef} />
         </div>
+
+        {/* Botón para bajar si el usuario subió */}
+        {showScrollBtn && (
+            <button
+                onClick={() => scrollToBottom("smooth")}
+                className="absolute bottom-32 right-8 p-3 rounded-full bg-white shadow-xl border border-slate-200 text-blue-600 hover:text-blue-700 active:scale-95 transition-all z-10 animate-bounce"
+                title="Bajar al final"
+            >
+              <RefreshCw size={20} className="rotate-180" />
+            </button>
+        )}
 
         {/* Input de mensaje */}
         <div className="p-4 border-t bg-white">

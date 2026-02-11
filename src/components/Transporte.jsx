@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import * as XLSX from "xlsx";
-import { Activity } from "lucide-react";
+import { Activity, Ruler } from "lucide-react";
 import PageHeader from "../ui/PageHeader";
 import { Link } from "react-router-dom";
 import ChatCenter from "./ChatCenter";
@@ -559,7 +559,7 @@ export default function Transporte() {
               </div>
             </div>
 
-            <div className="overflow-auto">
+            <div className="max-h-[600px] overflow-auto">
               <table className="min-w-[1200px] w-full">
                 <thead className="bg-slate-900 text-white">
                 <tr className="text-left text-[10px] font-black uppercase tracking-[0.25em]">
@@ -591,16 +591,16 @@ export default function Transporte() {
 
                               <Link
                                   to={`${PATENTES_ROUTE}?patente=${encodeURIComponent(viaje.patente || "")}`}
-                                  className={`mt-1 inline-flex w-fit items-center gap-2 px-2.5 py-1 rounded-full border text-[11px] font-black
+                                  className={`mt-1 inline-flex w-fit items-center gap-2 p-1.5 rounded-full border transition-colors
                               ${
                                       patenteTieneMedidas(viaje.patente)
-                                          ? "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
-                                          : "bg-rose-50 border-rose-200 text-rose-800 hover:bg-rose-100"
+                                          ? "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100"
+                                          : "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
                                   }
                               ${patentesDimLoading ? "opacity-60 pointer-events-none" : ""}`}
-                                  title="Abrir catastro de patentes para editar medidas"
+                                  title={patenteTieneMedidas(viaje.patente) ? "Medidas OK" : "Faltan medidas - Click para editar"}
                               >
-                                {patenteTieneMedidas(viaje.patente) ? "✅ Medidas OK" : "⚠️ Faltan medidas"}
+                                <Ruler size={14} />
                               </Link>
                             </div>
                           </td>

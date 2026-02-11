@@ -38,6 +38,87 @@ export default function ChatCenter({ fecha }) {
   const [q, setQ] = useState("");
   const channelRef = useRef(null);
 
+  // Posición draggable del botón flotante
+  const BUTTON_SIZE = 64; // w-16 h-16
+  const margin = 24; // bottom-6/right-6 ≈ 24px
+  const [pos, setPos] = useState(() => {
+    try {
+      const saved = localStorage.getItem("chatBtnPos");
+      if (saved) {
+        const p = JSON.parse(saved);
+        return { x: p.x ?? 0, y: p.y ?? 0 };
+      }
+    } catch {}
+    // posición inicial: abajo a la derecha
+    const x = (typeof window !== "undefined" ? window.innerWidth : 1200) - margin - BUTTON_SIZE;
+    const y = (typeof window !== "undefined" ? window.innerHeight : 800) - margin - BUTTON_SIZE;
+    return { x: Math.max(8, x), y: Math.max(8, y) };
+  });
+  const posRef = useRef(pos);
+  useEffect(() => { posRef.current = pos; }, [pos]);
+
+  const isDraggingRef = useRef(false);
+  const startPosRef = useRef({ x: 0, y: 0 });
+  const startPointerRef = useRef({ x: 0, y: 0 });
+  const movedRef = useRef(false);
+
+  const clamp = (x, y) => {
+    const maxX = (typeof window !== "undefined" ? window.innerWidth : 1200) - BUTTON_SIZE - 8;
+    const maxY = (typeof window !== "undefined" ? window.innerHeight : 800) - BUTTON_SIZE - 8;
+    return {
+      x: Math.min(Math.max(8, x), maxX),
+      y: Math.min(Math.max(8, y), maxY),
+    };
+  };
+
+  const onPointerMove = (e) => {
+    if (!isDraggingRef.current) return;
+    const isTouch = e.touches && e.touches[0];
+    const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+    const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+    if (e.cancelable) e.preventDefault();
+    const dx = clientX - startPointerRef.current.x;
+    const dy = clientY - startPointerRef.current.y;
+    const np = clamp(startPosRef.current.x + dx, startPosRef.current.y + dy);
+    setPos(np);
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) movedRef.current = true;
+  };
+
+  const stopDragging = () => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    try {
+      localStorage.setItem("chatBtnPos", JSON.stringify(posRef.current));
+    } catch {}
+    window.removeEventListener("mousemove", onPointerMove);
+    window.removeEventListener("mouseup", stopDragging);
+    window.removeEventListener("touchmove", onPointerMove);
+    window.removeEventListener("touchend", stopDragging);
+  };
+
+  const startDragging = (e) => {
+    isDraggingRef.current = true;
+    movedRef.current = false;
+    const isTouch = e.touches && e.touches[0];
+    const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+    const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+    startPointerRef.current = { x: clientX, y: clientY };
+    startPosRef.current = { x: posRef.current.x, y: posRef.current.y };
+    window.addEventListener("mousemove", onPointerMove, { passive: false });
+    window.addEventListener("mouseup", stopDragging);
+    window.addEventListener("touchmove", onPointerMove, { passive: false });
+    window.addEventListener("touchend", stopDragging);
+  };
+
+  // Re-ajustar al hacer resize para que no quede fuera de pantalla
+  useEffect(() => {
+    const onResize = () => {
+      setPos((p) => clamp(p.x, p.y));
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const fetchUltimos = async () => {
     setLoading(true);
     try {
@@ -60,16 +141,15 @@ export default function ChatCenter({ fecha }) {
 
   // Realtime global
   useEffect(() => {
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
     const ch = supabase
         .channel("mensajes_chat_global")
         .on("postgres_changes", { event: "INSERT", schema: "public", table: TABLE }, (payload) => {
           const row = payload.new;
-          setMensajes((prev) => [row, ...prev].slice(0, 1200));
+          setMensajes((prev) => {
+            // Evitar duplicados por si acaso
+            if (prev.some(m => m.id === row.id)) return prev;
+            return [row, ...prev].slice(0, 1200);
+          });
         })
         .subscribe();
 
@@ -92,6 +172,8 @@ export default function ChatCenter({ fecha }) {
   const conversaciones = useMemo(() => {
     const map = new Map();
 
+    // Procesamos de más antiguo a más nuevo para que el último prevalezca fácilmente
+    // O procesamos de más nuevo a más antiguo (como están) y el primero que encontramos es el último.
     for (const m of mensajes) {
       const patente = cleanStr(m.patente).toUpperCase();
       if (!patente) continue;
@@ -106,7 +188,13 @@ export default function ChatCenter({ fecha }) {
           last_text: textPreview || (hasImage ? "📷 Imagen" : ""),
           last_from: m.remitente,
           pending: m.remitente === "chofer",
+          count: 1
         });
+      } else {
+        const conv = map.get(patente);
+        conv.count++;
+        // Si el mensaje es de chofer, marcamos como pendiente si es más reciente que el último leído (aproximación)
+        // En este caso, el diseño actual asume que si el ÚLTIMO es del chofer, está pendiente.
       }
     }
 
@@ -115,7 +203,10 @@ export default function ChatCenter({ fecha }) {
     // Búsqueda
     const needle = q.trim().toLowerCase();
     if (needle) {
-      list = list.filter((c) => c.patente.toLowerCase().includes(needle));
+      list = list.filter((c) => 
+        c.patente.toLowerCase().includes(needle) || 
+        c.last_text.toLowerCase().includes(needle)
+      );
     }
 
     // Ordenar por más reciente
@@ -131,7 +222,8 @@ export default function ChatCenter({ fecha }) {
 
   const abrir = () => {
     setOpen(true);
-    if (!selectedPatente && conversaciones[0]?.patente) {
+    // Seleccionar automáticamente la primera patente si no hay ninguna seleccionada
+    if (!selectedPatente && conversaciones.length > 0) {
       setSelectedPatente(conversaciones[0].patente);
     }
   };
@@ -140,11 +232,22 @@ export default function ChatCenter({ fecha }) {
 
   return (
       <>
-        {/* BOTÓN FLOTANTE MEJORADO */}
+        {/* BOTÓN FLOTANTE MEJORADO (ahora movible) */}
         <button
             type="button"
-            onClick={abrir}
-            className="fixed bottom-6 right-6 z-[9997] group"
+            onMouseDown={startDragging}
+            onTouchStart={startDragging}
+            onClick={(e) => {
+              // Si se arrastró, no abrir
+              if (movedRef.current || isDraggingRef.current) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
+              abrir();
+            }}
+            className="fixed z-[9997] group cursor-grab active:cursor-grabbing"
+            style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
             title="Centro de mensajes"
         >
           <div className="relative">
@@ -154,7 +257,7 @@ export default function ChatCenter({ fecha }) {
             )}
 
             {/* Botón principal */}
-            <div className="relative rounded-full shadow-2xl border-2 border-white bg-gradient-to-r from-blue-500 to-blue-600 text-white w-16 h-16 flex items-center justify-center hover:from-blue-600 hover:to-blue-700 active:scale-95 transition-all duration-200">
+            <div className="relative rounded-full shadow-2xl border-2 border-white bg-gradient-to-r from-blue-500 to-blue-600 text-white w-16 h-16 flex items-center justify-center hover:from-blue-600 hover:to-blue-700 active:scale-95 transition-all duration-200 select-none touch-none">
               <MessageSquare size={26} strokeWidth={2.5} />
 
               {/* Badge de notificaciones */}
@@ -184,9 +287,9 @@ export default function ChatCenter({ fecha }) {
               />
 
               {/* Panel principal */}
-              <div className="relative w-full md:w-[1000px] h-[90vh] md:h-full bg-white rounded-t-3xl md:rounded-none md:rounded-l-3xl shadow-2xl overflow-hidden flex">
+              <div className="relative w-full md:w-[1000px] h-full md:h-[95vh] my-auto bg-white rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
                 {/* LISTA IZQUIERDA */}
-                <div className="w-full md:w-[380px] border-r border-slate-200 flex flex-col bg-slate-50">
+                <div className={`${selectedPatente && 'hidden md:flex'} w-full md:w-[380px] border-r border-slate-200 flex flex-col bg-slate-50`}>
                   {/* Header */}
                   <div className="px-5 py-4 border-b bg-gradient-to-r from-slate-900 to-slate-800 text-white">
                     <div className="flex items-center justify-between gap-3">
@@ -267,8 +370,8 @@ export default function ChatCenter({ fecha }) {
                   </div>
 
                   {/* Lista de conversaciones */}
-                  <div className="flex-1 overflow-auto">
-                    {conversaciones.length === 0 ? (
+                  <div className="flex-1 overflow-auto bg-white/5 scrollbar-hide">
+                          {conversaciones.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400 px-4">
                           <MessageSquare size={48} className="opacity-30" />
                           <span className="font-semibold text-center">
@@ -306,8 +409,15 @@ export default function ChatCenter({ fecha }) {
                                     </div>
 
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-black text-slate-900 text-base">
-                                        {c.patente}
+                                      <div className="flex items-center gap-2">
+                                        <div className="font-black text-slate-900 text-base">
+                                          {c.patente}
+                                        </div>
+                                        {c.count > 1 && (
+                                            <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md font-bold">
+                                              {c.count} msgs
+                                            </span>
+                                        )}
                                       </div>
                                       <div className="mt-0.5 text-xs text-slate-600 line-clamp-1 font-medium">
                                         {c.last_from === "chofer" ? (
@@ -346,12 +456,18 @@ export default function ChatCenter({ fecha }) {
                 </div>
 
                 {/* CHAT DERECHA */}
-                <div className="flex-1 min-w-0 flex flex-col">
+                <div className={`${!selectedPatente && 'hidden md:flex'} flex-1 min-w-0 flex flex-col bg-white`}>
                   {selectedPatente ? (
                       <>
                         {/* Header del chat actual */}
                         <div className="px-5 py-4 border-b bg-white flex items-center justify-between">
                           <div className="flex items-center gap-3">
+                            <button 
+                              onClick={() => setSelectedPatente("")}
+                              className="md:hidden p-2 -ml-2 rounded-full hover:bg-slate-100"
+                            >
+                              <X size={20} className="rotate-90" />
+                            </button>
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center font-black">
                               {selectedPatente.substring(0, 2)}
                             </div>
@@ -373,12 +489,13 @@ export default function ChatCenter({ fecha }) {
                         </div>
 
                         {/* Chat panel */}
-                        <div className="flex-1 min-h-0">
+                        <div className="flex-1 min-h-0 bg-white">
                           <ChatPanel
                               patenteInicial={selectedPatente}
                               fecha={fecha}
                               height="100%"
                               hideHeader={true}
+                              onMessageSent={() => fetchUltimos()}
                           />
                         </div>
                       </>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
     UploadCloud,
@@ -14,7 +14,8 @@ import {
     Clock,
     Shield,
     FileCheck,
-    Filter
+    Filter,
+    ChevronDown
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
@@ -40,6 +41,29 @@ function parsePatenteFromIdentificador(identificador) {
     return s.slice(4).trim();
 }
 
+const TOAST_STYLES = {
+    success: { bg: "bg-emerald-50", border: "border-emerald-500", text: "text-emerald-800", icon: CheckCircle2 },
+    error: { bg: "bg-rose-50", border: "border-rose-500", text: "text-rose-800", icon: AlertCircle },
+    warning: { bg: "bg-amber-50", border: "border-amber-500", text: "text-amber-800", icon: AlertCircle },
+    info: { bg: "bg-blue-50", border: "border-blue-500", text: "text-blue-800", icon: AlertCircle },
+};
+
+function ToastNotification({ toast, onClose }) {
+    if (!toast.visible) return null;
+    const style = TOAST_STYLES[toast.type] || TOAST_STYLES.info;
+    const Icon = style.icon;
+
+    return (
+        <div className={`fixed top-24 right-6 z-[9999] flex items-center gap-3 px-5 py-4 rounded-xl shadow-xl border-l-4 transition-all duration-300 ${style.bg} ${style.border} ${style.text} min-w-[320px]`}>
+            <Icon size={20} />
+            <p className="text-sm font-semibold leading-tight flex-1">{toast.message}</p>
+            <button onClick={onClose} className="opacity-50 hover:opacity-100 transition-opacity">
+                <X size={18} />
+            </button>
+        </div>
+    );
+}
+
 export default function DevolucionesImportExcel() {
     const [fileName, setFileName] = useState("");
     const [rawRows, setRawRows] = useState([]);
@@ -57,6 +81,9 @@ export default function DevolucionesImportExcel() {
     const [hasImportedToday, setHasImportedToday] = useState(false);
     const [showCalendar, setShowCalendar] = useState(false);
     const [lastImportInfo, setLastImportInfo] = useState(null);
+    const [showLockedInfo, setShowLockedInfo] = useState(false);
+    const [toast, setToast] = useState({ visible: false, message: "", type: "info" });
+    const toastTimerRef = useRef(null);
 
     const importDate = useMemo(() => {
         const d = new Date();
@@ -182,7 +209,7 @@ export default function DevolucionesImportExcel() {
             setDbRows(data || []);
         } catch (e) {
             console.error(e);
-            alert(e?.message || "Error cargando datos");
+            showToast(e?.message || "Error cargando datos", "error");
         } finally {
             setDbBusy(false);
         }
@@ -194,6 +221,24 @@ export default function DevolucionesImportExcel() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedDate]);
 
+    useEffect(() => {
+        if (!importLocked || !isToday) setShowLockedInfo(false);
+    }, [importLocked, isToday]);
+
+    useEffect(() => {
+        return () => {
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        };
+    }, []);
+
+    const showToast = (message, type = "info") => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast({ visible: true, message, type });
+        toastTimerRef.current = setTimeout(() => {
+            setToast((prev) => ({ ...prev, visible: false }));
+        }, 4000);
+    };
+
     const clear = () => {
         setFileName("");
         setRawRows([]);
@@ -201,7 +246,7 @@ export default function DevolucionesImportExcel() {
 
     const guardarAutomatico = async (rows, filename) => {
         if (importLocked && hasImportedToday) {
-            alert("⚠️ Ya se importó data hoy. Usa 'Desbloquear' para permitir nuevos imports.");
+            showToast("Ya se importo data hoy. Usa 'Desbloquear' para permitir nuevos imports.", "warning");
             clear();
             return;
         }
@@ -261,7 +306,7 @@ export default function DevolucionesImportExcel() {
             }));
 
             if (!processedGrouped.length) {
-                alert("No se encontraron rutas válidas para importar");
+                showToast("No se encontraron rutas validas para importar", "warning");
                 clear();
                 return;
             }
@@ -316,11 +361,11 @@ export default function DevolucionesImportExcel() {
             await checkTodayImport();
             await fetchDbRows();
 
-            alert(`✅ Import automático exitoso: ${payload.length} rutas procesadas`);
+            showToast(`Import automatico exitoso: ${payload.length} rutas procesadas`, "success");
             clear();
         } catch (e) {
             console.error(e);
-            alert(e?.message || "Error importando");
+            showToast(e?.message || "Error importando", "error");
             clear();
         } finally {
             setBusy(false);
@@ -363,6 +408,10 @@ export default function DevolucionesImportExcel() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 p-6 md:p-8 font-sans">
+            <ToastNotification
+                toast={toast}
+                onClose={() => setToast((prev) => ({ ...prev, visible: false }))}
+            />
             {/* Header */}
             <div className="mb-8">
                 <div className="flex items-center gap-3 mb-2">
@@ -638,13 +687,25 @@ export default function DevolucionesImportExcel() {
                             )}
                         </div>
                         {importLocked && (
-                            <button
-                                onClick={desbloquearImport}
-                                className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition-all font-bold text-sm"
-                            >
-                                <Unlock size={16} />
-                                Desbloquear
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setShowLockedInfo((v) => !v)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-white border border-amber-300 text-amber-800 rounded-xl hover:bg-amber-50 transition-all font-bold text-sm"
+                                >
+                                    <ChevronDown
+                                        size={16}
+                                        className={`transition-transform ${showLockedInfo ? "rotate-180" : ""}`}
+                                    />
+                                    {showLockedInfo ? "Ocultar detalle" : "Ver detalle"}
+                                </button>
+                                <button
+                                    onClick={desbloquearImport}
+                                    className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition-all font-bold text-sm"
+                                >
+                                    <Unlock size={16} />
+                                    Desbloquear
+                                </button>
+                            </div>
                         )}
                     </div>
                 )}
@@ -721,7 +782,7 @@ export default function DevolucionesImportExcel() {
                     </div>
                 )}
 
-                {isToday && importLocked && (
+                {isToday && importLocked && showLockedInfo && (
                     <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-6 text-center">
                         <Lock className="mx-auto text-amber-600 mb-3" size={40} />
                         <p className="font-black text-amber-900 mb-2">
@@ -776,9 +837,9 @@ export default function DevolucionesImportExcel() {
                     </button>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
                     <table className="w-full text-left border-collapse">
-                        <thead className="bg-gradient-to-r from-slate-50 to-white border-b-2 border-slate-200">
+                        <thead className="sticky top-0 z-10 bg-gradient-to-r from-slate-50 to-white border-b-2 border-slate-200">
                             <tr>
                                 <th className="px-6 py-4 text-xs font-black text-slate-600 uppercase tracking-wider">
                                     Fecha Import
@@ -889,3 +950,5 @@ export default function DevolucionesImportExcel() {
         </div>
     );
 }
+
+
