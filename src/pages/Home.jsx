@@ -161,7 +161,7 @@ export default function Home() {
           {role === "admin" && (
             <>
               <ActionCard
-                title="Usuarios y Roles"
+                title="Usuarios y  agustin verificacion funcionamiento Roles"
                 desc="Administración de accesos, permisos y perfiles."
                 icon={Users}
                 path="/usuarios"
